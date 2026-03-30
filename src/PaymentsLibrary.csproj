@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+
+    <!-- NuGet package metadata -->
+    <PackageId>PaymentsLibrary</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Michal</Authors>
+    <Description>Unified .NET library for integrating with payment providers (Przelewy24, Stripe, PayPal, and more).</Description>
+    <PackageTags>payments;przelewy24;stripe;paypal;dotnet</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryType>git</RepositoryType>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+</Project>
