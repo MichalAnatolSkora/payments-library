@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using PaymentsLibrary.Abstractions;
 using PaymentsLibrary.Providers.Przelewy24;
+using Xunit.Abstractions;
 
 namespace PaymentsLibrary.Tests;
 
@@ -12,9 +13,12 @@ public sealed class Przelewy24IntegrationTests : IDisposable
 {
     private readonly Przelewy24Provider _provider;
     private readonly HttpClient _httpClient = new();
+    private readonly ITestOutputHelper _output;
 
-    public Przelewy24IntegrationTests()
+    public Przelewy24IntegrationTests(ITestOutputHelper output)
     {
+        _output = output;
+        
         var config = new ConfigurationBuilder()
             .AddJsonFile("appsettings.Development.json", optional: false)
             .Build();
@@ -64,6 +68,10 @@ public sealed class Przelewy24IntegrationTests : IDisposable
         Assert.NotNull(result.RedirectUrl);
         Assert.Contains("sandbox.przelewy24.pl/trnRequest/", result.RedirectUrl);
         Assert.NotNull(result.PaymentToken);
+
+        _output.WriteLine("=========================================================");
+        _output.WriteLine($"Go to this URL to complete payment: {result.RedirectUrl}");
+        _output.WriteLine("=========================================================");
     }
 
     [Fact]
