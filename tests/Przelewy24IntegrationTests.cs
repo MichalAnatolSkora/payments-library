@@ -152,7 +152,15 @@ public sealed class Przelewy24IntegrationTests : IDisposable
         var amount    = 200;
         var currency  = "PLN";
 
-        var sign = ComputeExpectedSign(sessionId, orderId, amount, currency);
+        var config = new ConfigurationBuilder()
+            .AddJsonFile("appsettings.Development.json", optional: false)
+            .Build();
+        var merchantId = int.Parse(config["Przelewy24:MerchantId"]!);
+        var posId = int.Parse(config["Przelewy24:PosId"]!);
+        var methodId = 154;
+        var statement = "p24-123-abc";
+
+        var sign = ComputeExpectedSign(merchantId, posId, sessionId, orderId, amount, amount, currency, methodId, statement);
 
         var notification = new PaymentNotification
         {
@@ -161,6 +169,14 @@ public sealed class Przelewy24IntegrationTests : IDisposable
             Amount     = amount,
             Currency   = currency,
             Sign       = sign,
+            RawFields  = new Dictionary<string, string>
+            {
+                { "merchantId", merchantId.ToString() },
+                { "posId", posId.ToString() },
+                { "originAmount", amount.ToString() },
+                { "methodId", methodId.ToString() },
+                { "statement", statement }
+            }
         };
 
         Assert.True(_provider.ValidateNotification(notification));
@@ -189,7 +205,8 @@ public sealed class Przelewy24IntegrationTests : IDisposable
     /// Replicates the SHA-384 sign formula so we can build valid test notifications.
     /// </summary>
     private static string ComputeExpectedSign(
-        string sessionId, int orderId, int amount, string currency)
+        int merchantId, int posId, string sessionId, int orderId, int amount, 
+        int originAmount, string currency, int methodId, string statement)
     {
         // Read CRC from config — same key the provider uses
         var config = new ConfigurationBuilder()
@@ -199,10 +216,15 @@ public sealed class Przelewy24IntegrationTests : IDisposable
 
         var payload = System.Text.Json.JsonSerializer.Serialize(new
         {
+            merchantId,
+            posId,
             sessionId,
-            orderId,
             amount,
+            originAmount,
             currency,
+            orderId,
+            methodId,
+            statement,
             crc,
         });
 

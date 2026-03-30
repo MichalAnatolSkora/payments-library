@@ -109,8 +109,29 @@ public sealed class Przelewy24Provider : IPaymentProvider
         if (!int.TryParse(notification.ProviderId, out var orderId))
             return false;
 
-        var expected = ComputeNotifySign(
-            notification.SessionId, orderId, notification.Amount, notification.Currency);
+        // P24 webhook signature requires several specific fields.
+        // We attempt to extract them from RawFields, falling back to logical defaults.
+        // However, for a real webhook, if RawFields lacks 'statement' or 'methodId', validation will likely fail
+        // because the computed hash won't match the one Przelewy24 generated.
+        
+        var merchantId = notification.RawFields.TryGetValue("merchantId", out var mId) && int.TryParse(mId, out var parsedMId) 
+            ? parsedMId : _options.MerchantId;
+
+        var posId = notification.RawFields.TryGetValue("posId", out var pId) && int.TryParse(pId, out var parsedPId) 
+            ? parsedPId : _options.PosId;
+
+        var originAmount = notification.RawFields.TryGetValue("originAmount", out var oAmt) && int.TryParse(oAmt, out var parsedOAmt) 
+            ? parsedOAmt : notification.Amount;
+
+        var methodId = notification.RawFields.TryGetValue("methodId", out var methId) && int.TryParse(methId, out var parsedMethId) 
+            ? parsedMethId : 0;
+
+        var statement = notification.RawFields.TryGetValue("statement", out var stmt) 
+            ? stmt : string.Empty;
+
+        var expected = ComputeWebhookSign(
+            merchantId, posId, notification.SessionId, notification.Amount, originAmount, 
+            notification.Currency, orderId, methodId, statement);
 
         return string.Equals(expected, notification.Sign, StringComparison.OrdinalIgnoreCase);
     }
@@ -205,6 +226,27 @@ public sealed class Przelewy24Provider : IPaymentProvider
             orderId,
             amount,
             currency,
+            crc = _options.CrcKey,
+        });
+        return Sha384Hex(payload);
+    }
+
+    /// <summary>SHA-384 sign specifically for inbound webhook/IPN validation.</summary>
+    private string ComputeWebhookSign(
+        int merchantId, int posId, string sessionId, int amount, int originAmount, 
+        string currency, int orderId, int methodId, string statement)
+    {
+        var payload = JsonSerializer.Serialize(new
+        {
+            merchantId,
+            posId,
+            sessionId,
+            amount,
+            originAmount,
+            currency,
+            orderId,
+            methodId,
+            statement,
             crc = _options.CrcKey,
         });
         return Sha384Hex(payload);
