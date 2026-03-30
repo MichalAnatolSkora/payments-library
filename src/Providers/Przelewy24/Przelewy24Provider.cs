@@ -22,6 +22,10 @@ public sealed class Przelewy24Provider : IPaymentProvider
         _options = options;
         _http = httpClient;
 
+        _http.BaseAddress ??= new Uri(options.Sandbox
+            ? "https://sandbox.przelewy24.pl"
+            : "https://secure.przelewy24.pl");
+
         var credentials = Convert.ToBase64String(
             Encoding.ASCII.GetBytes($"{_options.PosId}:{_options.ApiKey}"));
         _http.DefaultRequestHeaders.Authorization =
@@ -50,7 +54,7 @@ public sealed class Przelewy24Provider : IPaymentProvider
             UrlReturn   = request.ReturnUrl,
             UrlStatus   = request.NotifyUrl,
             Client      = request.CustomerName,
-            Country     = request.Country,
+            Country     = request.Country ?? "PL",
             Language    = request.Language,
             Sign        = sign,
         };
@@ -216,13 +220,15 @@ public sealed class Przelewy24Provider : IPaymentProvider
     // Helpers
     // -------------------------------------------------------------------------
 
-    private static PaymentState MapState(string status) => status.ToLowerInvariant() switch
+    private static PaymentState MapState(string? status) => status?.ToLowerInvariant() switch
     {
-        "success"   or "complete" or "completed" => PaymentState.Completed,
-        "pending"   or "waiting"                 => PaymentState.Pending,
-        "cancelled" or "canceled"                => PaymentState.Cancelled,
-        "refunded"                               => PaymentState.Refunded,
-        "failed"    or "error"                   => PaymentState.Failed,
-        _                                        => PaymentState.Unknown,
+        "success"  or "complete" or "completed" or "2" => PaymentState.Completed,
+        "pending"  or "waiting"  or "new" or "created"
+            or "registered"      or "1"                => PaymentState.Pending,
+        "cancelled" or "canceled" or "3"               => PaymentState.Cancelled,
+        "refunded"  or "4"                             => PaymentState.Refunded,
+        "failed"    or "error"   or "5"                => PaymentState.Failed,
+        null or ""                                     => PaymentState.Unknown,
+        _                                              => PaymentState.Unknown,
     };
 }

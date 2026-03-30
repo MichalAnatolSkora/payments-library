@@ -23,8 +23,7 @@ internal sealed class RegisterTransactionRequest
     public string? UrlStatus { get; init; }
 
     [JsonPropertyName("country")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Country { get; init; }
+    public string Country { get; init; } = "PL";
 
     [JsonPropertyName("language")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
