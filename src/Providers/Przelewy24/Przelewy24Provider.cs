@@ -17,20 +17,15 @@ public sealed class Przelewy24Provider : IPaymentProvider
     private readonly Przelewy24Options _options;
     private readonly HttpClient _http;
 
-    private string BaseUrl => _options.Sandbox
-        ? "https://sandbox.przelewy24.pl"
-        : "https://secure.przelewy24.pl";
-
-    public Przelewy24Provider(Przelewy24Options options, HttpClient? httpClient = null)
+    public Przelewy24Provider(Przelewy24Options options, HttpClient httpClient)
     {
         _options = options;
-        _http = httpClient ?? new HttpClient();
+        _http = httpClient;
 
         var credentials = Convert.ToBase64String(
             Encoding.ASCII.GetBytes($"{_options.PosId}:{_options.ApiKey}"));
         _http.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Basic", credentials);
-        _http.BaseAddress = new Uri(BaseUrl);
     }
 
     // -------------------------------------------------------------------------
@@ -67,7 +62,10 @@ public sealed class Przelewy24Provider : IPaymentProvider
         if (result?.Data is null)
             return CreatePaymentResult.Fail(result?.Error ?? "unknown", result?.ErrorMessage ?? "Registration failed.");
 
-        var redirectUrl = $"{BaseUrl}/trnRequest/{result.Data.Token}";
+        var baseUrl = _options.Sandbox
+            ? "https://sandbox.przelewy24.pl"
+            : "https://secure.przelewy24.pl";
+        var redirectUrl = $"{baseUrl}/trnRequest/{result.Data.Token}";
         return CreatePaymentResult.Ok(redirectUrl, result.Data.Token);
     }
 
