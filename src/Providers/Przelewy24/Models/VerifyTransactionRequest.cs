@@ -9,6 +9,6 @@ internal sealed class VerifyTransactionRequest
     [JsonPropertyName("sessionId")]  public required string SessionId { get; init; }
     [JsonPropertyName("amount")]     public int Amount { get; init; }
     [JsonPropertyName("currency")]   public required string Currency { get; init; }
-    [JsonPropertyName("orderId")]    public int OrderId { get; init; }
+    [JsonPropertyName("orderId")]    public long OrderId { get; init; }
     [JsonPropertyName("sign")]       public required string Sign { get; init; }
 }

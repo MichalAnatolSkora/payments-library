@@ -2,6 +2,9 @@
   <Folder Name="/src/">
     <Project Path="src/PaymentsLibrary.csproj" />
   </Folder>
+  <Folder Name="/testapp/">
+    <Project Path="testapp/PaymentsLibrary.TestApp.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/PaymentsLibrary.Tests.csproj" />
   </Folder>

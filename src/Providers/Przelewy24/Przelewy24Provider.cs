@@ -60,8 +60,7 @@ public sealed class Przelewy24Provider : IPaymentProvider
         };
 
         var response = await _http.PostAsJsonAsync("/api/v1/transaction/register", body, cancellationToken);
-        var result   = await response.Content
-            .ReadFromJsonAsync<P24ApiResponse<RegisterTransactionData>>(cancellationToken: cancellationToken);
+        var result   = await ReadJsonOrNull<P24ApiResponse<RegisterTransactionData>>(response, cancellationToken);
 
         if (result?.Data is null)
             return CreatePaymentResult.Fail(result?.Error ?? "unknown", result?.ErrorMessage ?? "Registration failed.");
@@ -80,8 +79,7 @@ public sealed class Przelewy24Provider : IPaymentProvider
         var response = await _http.GetAsync(
             $"/api/v1/transaction/by/sessionId/{Uri.EscapeDataString(sessionId)}", cancellationToken);
 
-        var result = await response.Content
-            .ReadFromJsonAsync<P24ApiResponse<TransactionStatusData>>(cancellationToken: cancellationToken);
+        var result = await ReadJsonOrNull<P24ApiResponse<TransactionStatusData>>(response, cancellationToken);
 
         var data = result?.Data;
         if (data is null)
@@ -102,11 +100,12 @@ public sealed class Przelewy24Provider : IPaymentProvider
             State      = MapState(data.Status),
             MethodId   = data.MethodId?.ToString(),
         };
+
     }
 
     public bool ValidateNotification(PaymentNotification notification)
     {
-        if (!int.TryParse(notification.ProviderId, out var orderId))
+        if (!long.TryParse(notification.ProviderId, out var orderId))
             return false;
 
         // P24 webhook signature requires several specific fields.
@@ -140,7 +139,7 @@ public sealed class Przelewy24Provider : IPaymentProvider
         ConfirmPaymentRequest request,
         CancellationToken cancellationToken = default)
     {
-        if (!int.TryParse(request.ProviderId, out var orderId))
+        if (!long.TryParse(request.ProviderId, out var orderId))
             return ConfirmPaymentResult.Fail("invalid_provider_id", "ProviderId must be a numeric P24 orderId.");
 
         var sign = ComputeNotifySign(request.SessionId, orderId, request.Amount, request.Currency);
@@ -157,8 +156,7 @@ public sealed class Przelewy24Provider : IPaymentProvider
         };
 
         var response = await _http.PutAsJsonAsync("/api/v1/transaction/verify", body, cancellationToken);
-        var result   = await response.Content
-            .ReadFromJsonAsync<P24ApiResponse<JsonElement>>(cancellationToken: cancellationToken);
+        var result   = await ReadJsonOrNull<P24ApiResponse<JsonElement>>(response, cancellationToken);
 
         return result?.Error is null
             ? ConfirmPaymentResult.Ok()
@@ -169,7 +167,7 @@ public sealed class Przelewy24Provider : IPaymentProvider
         RefundRequest request,
         CancellationToken cancellationToken = default)
     {
-        if (!int.TryParse(request.ProviderId, out var orderId))
+        if (!long.TryParse(request.ProviderId, out var orderId))
             return RefundResult.Fail("invalid_provider_id", "ProviderId must be a numeric P24 orderId.");
 
         if (request.Amount is null)
@@ -191,8 +189,7 @@ public sealed class Przelewy24Provider : IPaymentProvider
         };
 
         var response = await _http.PostAsJsonAsync("/api/v1/transaction/refund", body, cancellationToken);
-        var result   = await response.Content
-            .ReadFromJsonAsync<P24ApiResponse<JsonElement>>(cancellationToken: cancellationToken);
+        var result   = await ReadJsonOrNull<P24ApiResponse<JsonElement>>(response, cancellationToken);
 
         return result?.Error is null
             ? RefundResult.Ok()
@@ -218,7 +215,7 @@ public sealed class Przelewy24Provider : IPaymentProvider
     }
 
     /// <summary>SHA-384 sign for IPN validation and /transaction/verify.</summary>
-    private string ComputeNotifySign(string sessionId, int orderId, int amount, string currency)
+    private string ComputeNotifySign(string sessionId, long orderId, int amount, string currency)
     {
         var payload = JsonSerializer.Serialize(new
         {
@@ -233,8 +230,8 @@ public sealed class Przelewy24Provider : IPaymentProvider
 
     /// <summary>SHA-384 sign specifically for inbound webhook/IPN validation.</summary>
     private string ComputeWebhookSign(
-        int merchantId, int posId, string sessionId, int amount, int originAmount, 
-        string currency, int orderId, int methodId, string statement)
+        int merchantId, int posId, string sessionId, int amount, int originAmount,
+        string currency, long orderId, int methodId, string statement)
     {
         var payload = JsonSerializer.Serialize(new
         {
@@ -262,15 +259,28 @@ public sealed class Przelewy24Provider : IPaymentProvider
     // Helpers
     // -------------------------------------------------------------------------
 
-    private static PaymentState MapState(string? status) => status?.ToLowerInvariant() switch
+    private static async Task<T?> ReadJsonOrNull<T>(HttpResponseMessage response, CancellationToken ct)
     {
-        "success"  or "complete" or "completed" or "2" => PaymentState.Completed,
-        "pending"  or "waiting"  or "new" or "created"
-            or "registered"      or "1"                => PaymentState.Pending,
-        "cancelled" or "canceled" or "3"               => PaymentState.Cancelled,
-        "refunded"  or "4"                             => PaymentState.Refunded,
-        "failed"    or "error"   or "5"                => PaymentState.Failed,
-        null or ""                                     => PaymentState.Unknown,
-        _                                              => PaymentState.Unknown,
+        var contentType = response.Content.Headers.ContentType?.MediaType ?? "";
+        if (!contentType.Contains("json", StringComparison.OrdinalIgnoreCase))
+            return default;
+        try
+        {
+            return await response.Content.ReadFromJsonAsync<T>(cancellationToken: ct);
+        }
+        catch (JsonException)
+        {
+            return default;
+        }
+    }
+
+    private static PaymentState MapState(int status) => status switch
+    {
+        1 => PaymentState.Pending,
+        2 => PaymentState.Completed,
+        3 => PaymentState.Cancelled,
+        4 => PaymentState.Refunded,
+        5 => PaymentState.Failed,
+        _ => PaymentState.Unknown,
     };
 }

@@ -87,6 +87,35 @@ builder.Services.AddPrzelewy24(builder.Configuration);
 | `ConfirmPaymentAsync` | Confirm/settle a payment after a validated notification |
 | `RefundAsync` | Issue a full or partial refund |
 
+## Test Console
+
+The `testapp/` project is an ASP.NET Core app with a browser UI for manually testing all provider operations against the sandbox.
+
+```bash
+dotnet run --project testapp
+# open http://localhost:5000
+```
+
+### Credential auto-fill
+
+On startup the SPA calls `GET /api/config`, which reads the `Przelewy24` section from `appsettings.Development.json` and returns it to the browser. The credential fields in the sidebar are then pre-filled automatically — no need to type keys by hand every time.
+
+To set your local credentials, edit `testapp/appsettings.Development.json` (already gitignored):
+
+```json
+{
+  "Przelewy24": {
+    "MerchantId": 390264,
+    "PosId":      390264,
+    "ApiKey":     "...",
+    "CrcKey":     "...",
+    "Sandbox":    true
+  }
+}
+```
+
+If the file is missing or the section is absent the UI simply starts with empty fields.
+
 ## License
 
 MIT

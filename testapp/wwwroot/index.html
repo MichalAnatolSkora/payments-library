@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Payments Library — Test Console</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #0f0f1a; color: #e0e0e0; min-height: 100vh; }
+
+/* ── header ─────────────────────────────────────────────── */
+header {
+  background: #1a1a2e; border-bottom: 1px solid #2a2a4a;
+  padding: 14px 28px; display: flex; align-items: center; gap: 12px;
+}
+header h1 { font-size: 1rem; font-weight: 600; color: #fff; letter-spacing: .3px; }
+header .badge {
+  font-size: .72rem; background: #4f46e5; color: #fff;
+  padding: 2px 8px; border-radius: 20px; font-weight: 500;
+}
+
+/* ── layout ─────────────────────────────────────────────── */
+.layout { display: flex; min-height: calc(100vh - 49px); }
+
+/* ── sidebar ─────────────────────────────────────────────── */
+aside {
+  width: 260px; min-width: 260px; background: #13131f;
+  border-right: 1px solid #2a2a4a; padding: 20px 16px;
+  display: flex; flex-direction: column; gap: 20px;
+}
+.sidebar-section-title {
+  font-size: .68rem; text-transform: uppercase; letter-spacing: 1.2px;
+  color: #555; margin-bottom: 10px; font-weight: 600;
+}
+.field { margin-bottom: 8px; }
+.field label { display: block; font-size: .78rem; color: #888; margin-bottom: 4px; }
+.field input[type=text], .field input[type=number] {
+  width: 100%; padding: 6px 9px; border: 1px solid #2a2a4a;
+  border-radius: 6px; font-size: .82rem; background: #1a1a2e; color: #e0e0e0;
+}
+.field input:focus { outline: none; border-color: #4f46e5; }
+.toggle-row { display: flex; align-items: center; gap: 8px; font-size: .82rem; color: #888; margin-top: 4px; }
+.toggle-row input { accent-color: #4f46e5; }
+
+/* ── main ────────────────────────────────────────────────── */
+main { flex: 1; padding: 28px 32px 100px; overflow-y: auto; }
+
+/* ── flow graph ──────────────────────────────────────────── */
+.flow {
+  display: flex; align-items: flex-start; gap: 0;
+  margin-bottom: 32px; position: relative;
+}
+.flow-step {
+  display: flex; flex-direction: column; align-items: center;
+  flex: 1; cursor: pointer;
+  position: relative;
+}
+.flow-step .node {
+  width: 44px; height: 44px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem; font-weight: 700;
+  border: 2px solid #2a2a4a; background: #1a1a2e; color: #555;
+  transition: all .2s; position: relative; z-index: 2;
+}
+.flow-step .node-label {
+  font-size: .72rem; color: #666; margin-top: 8px; text-align: center;
+  line-height: 1.3; max-width: 80px;
+}
+.flow-step.done .node    { border-color: #22c55e; background: #052e16; color: #22c55e; }
+.flow-step.done .node-label { color: #22c55e; }
+.flow-step.active .node  { border-color: #4f46e5; background: #1e1b4b; color: #a5b4fc; box-shadow: 0 0 0 4px #4f46e510; }
+.flow-step.active .node-label { color: #a5b4fc; font-weight: 600; }
+.flow-step.locked .node  { opacity: .35; cursor: default; }
+
+/* arrow between steps */
+.flow-arrow {
+  flex: 0 0 auto; display: flex; align-items: center;
+  padding: 0 4px; padding-bottom: 28px; /* align with circle center */
+  color: #2a2a4a; font-size: 1.1rem; line-height: 44px;
+}
+.flow-arrow.propagated { color: #4f46e5; }
+
+/* ── step badge on node ─────────────────────────────────── */
+.flow-step .step-num {
+  position: absolute; top: -6px; right: -6px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #2a2a4a; color: #888; font-size: .65rem;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; z-index: 3;
+}
+.flow-step.done .step-num { background: #052e16; color: #22c55e; }
+.flow-step.active .step-num { background: #1e1b4b; color: #818cf8; }
+
+/* ── propagation hint ────────────────────────────────────── */
+.propagated-hint {
+  font-size: .75rem; color: #4f46e5; background: #1e1b4b;
+  border: 1px solid #3730a3; border-radius: 6px;
+  padding: 8px 12px; margin-bottom: 16px; display: none;
+}
+.propagated-hint.visible { display: flex; align-items: center; gap: 8px; }
+
+/* ── panels ──────────────────────────────────────────────── */
+.panel { display: none; }
+.panel.visible { display: block; }
+.panel-title { font-size: 1rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
+.panel-sub   { font-size: .8rem; color: #666; margin-bottom: 18px; }
+
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 18px; margin-bottom: 16px; }
+.form-grid .full { grid-column: 1 / -1; }
+.form-grid label { display: block; font-size: .78rem; color: #888; margin-bottom: 4px; }
+.form-grid input[type=text],
+.form-grid input[type=number] {
+  width: 100%; padding: 7px 10px; border: 1px solid #2a2a4a;
+  border-radius: 6px; font-size: .83rem; background: #1a1a2e; color: #e0e0e0;
+}
+.form-grid input:focus { outline: none; border-color: #4f46e5; }
+.form-grid input.prefilled { border-color: #3730a3; background: #1e1b4b; }
+
+.btn-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+button.run {
+  background: #4f46e5; color: #fff; border: none; padding: 9px 22px;
+  border-radius: 6px; cursor: pointer; font-size: .86rem; font-weight: 500;
+  transition: background .15s;
+}
+button.run:hover { background: #4338ca; }
+button.run:disabled { background: #312e81; color: #6366f1; cursor: not-allowed; }
+
+button.secondary {
+  background: none; color: #4f46e5; border: 1px solid #3730a3;
+  padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: .84rem;
+}
+button.secondary:hover { background: #1e1b4b; }
+
+.pay-link {
+  display: none; margin-top: 14px; padding: 12px 16px;
+  background: #052e16; border: 1px solid #166534; border-radius: 8px;
+  font-size: .84rem;
+}
+.pay-link.visible { display: flex; align-items: center; gap: 10px; }
+.pay-link a { color: #4ade80; font-weight: 600; word-break: break-all; }
+.pay-link .open-btn {
+  flex-shrink: 0; background: #166534; color: #4ade80; border: none;
+  padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: .8rem;
+}
+.pay-link .open-btn:hover { background: #15803d; }
+
+.result {
+  margin-top: 18px; background: #0d0d1a; color: #a5f3fc;
+  border: 1px solid #2a2a4a; border-radius: 8px; padding: 14px 16px;
+  font-family: 'Menlo', 'Consolas', monospace; font-size: .79rem;
+  white-space: pre-wrap; min-height: 56px; max-height: 360px; overflow-y: auto;
+  line-height: 1.6;
+}
+.result.ok    { color: #86efac; border-color: #166534; }
+.result.error { color: #fca5a5; border-color: #7f1d1d; }
+.result.idle  { color: #444; }
+
+/* ── IPN bar (fixed bottom) ──────────────────────────── */
+.ipn-bar {
+  position: fixed; bottom: 0; left: 260px; right: 0;
+  background: #13131f; border-top: 1px solid #2a2a4a;
+  padding: 0 24px; z-index: 100;
+}
+.ipn-bar-header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 0; cursor: pointer; user-select: none;
+}
+.ipn-bar-header span { font-size: .82rem; color: #888; }
+.ipn-badge {
+  background: #4f46e5; color: #fff; font-size: .7rem;
+  padding: 1px 7px; border-radius: 20px; font-weight: 600;
+  display: none;
+}
+.ipn-badge.visible { display: inline; }
+.ipn-list { display: none; max-height: 240px; overflow-y: auto; padding-bottom: 12px; }
+.ipn-list.open { display: block; }
+.ipn-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 10px; border-radius: 6px; margin-bottom: 4px;
+  font-size: .78rem; background: #1a1a2e; cursor: default;
+}
+.ipn-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.ipn-dot.ok  { background: #22c55e; }
+.ipn-dot.bad { background: #ef4444; }
+.ipn-session { color: #a5b4fc; font-family: monospace; }
+.ipn-meta    { color: #666; flex: 1; }
+.ipn-use-btn {
+  background: #1e1b4b; color: #818cf8; border: 1px solid #3730a3;
+  padding: 3px 10px; border-radius: 4px; font-size: .73rem; cursor: pointer;
+}
+.ipn-use-btn:hover { background: #312e81; }
+.tunnel-hint { font-size: .74rem; color: #555; padding: 4px 0 10px; }
+.tunnel-hint code { color: #a5b4fc; background: #1a1a2e; padding: 1px 5px; border-radius: 3px; }
+
+/* ── external step card ─────────────────────────────────── */
+.ext-step {
+  background: #13131f; border: 1px dashed #2a2a4a;
+  border-radius: 10px; padding: 16px 20px; margin-bottom: 0;
+  font-size: .84rem; color: #666;
+}
+.ext-step strong { color: #a5b4fc; display: block; margin-bottom: 6px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Payments Library — Test Console</h1>
+  <span class="badge">Przelewy24</span>
+</header>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside>
+    <div>
+      <div class="sidebar-section-title">Credentials</div>
+      <div class="field"><label>Merchant ID</label><input id="cMerchantId" type="number" value="390264" /></div>
+      <div class="field"><label>Pos ID</label><input id="cPosId" type="number" value="390264" /></div>
+      <div class="field"><label>API Key (raportów)</label><input id="cApiKey" type="text" placeholder="b0649ec..." /></div>
+      <div class="field"><label>CRC Key</label><input id="cCrcKey" type="text" placeholder="b666d2b..." /></div>
+      <div class="toggle-row"><input id="cSandbox" type="checkbox" checked /><label for="cSandbox">Sandbox</label></div>
+    </div>
+
+    <div>
+      <div class="sidebar-section-title">Session context</div>
+      <div class="field"><label>Session ID</label><input id="ctx-sessionId" type="text" readonly placeholder="set after step 1" style="opacity:.7" /></div>
+      <div class="field"><label>Provider Order ID</label><input id="ctx-orderId" type="text" readonly placeholder="set after payment" style="opacity:.7" /></div>
+      <div class="field"><label>Amount (gr)</label><input id="ctx-amount" type="number" readonly placeholder="—" style="opacity:.7" /></div>
+      <div class="field"><label>Currency</label><input id="ctx-currency" type="text" readonly placeholder="—" style="opacity:.7" /></div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main>
+
+    <!-- FLOW GRAPH -->
+    <div class="flow" id="flow">
+
+      <div class="flow-step active" id="fstep-1" data-step="1" onclick="goStep(1)">
+        <div class="node">1<span class="step-num">1</span></div>
+        <div class="node-label">Create<br>Payment</div>
+      </div>
+
+      <div class="flow-arrow" id="arrow-1">→</div>
+
+      <div class="flow-step locked" id="fstep-2" data-step="2" onclick="goStep(2)">
+        <div class="node">2<span class="step-num">2</span></div>
+        <div class="node-label">Customer<br>Pays</div>
+      </div>
+
+      <div class="flow-arrow" id="arrow-2">→</div>
+
+      <div class="flow-step locked" id="fstep-3" data-step="3" onclick="goStep(3)">
+        <div class="node">3<span class="step-num">3</span></div>
+        <div class="node-label">Check<br>Status</div>
+      </div>
+
+      <div class="flow-arrow" id="arrow-3">→</div>
+
+      <div class="flow-step locked" id="fstep-4" data-step="4" onclick="goStep(4)">
+        <div class="node">4<span class="step-num">4</span></div>
+        <div class="node-label">Validate<br>IPN</div>
+      </div>
+
+      <div class="flow-arrow" id="arrow-4">→</div>
+
+      <div class="flow-step locked" id="fstep-5" data-step="5" onclick="goStep(5)">
+        <div class="node">5<span class="step-num">5</span></div>
+        <div class="node-label">Confirm<br>Payment</div>
+      </div>
+
+      <div class="flow-arrow" id="arrow-5">→</div>
+
+      <div class="flow-step locked" id="fstep-6" data-step="6" onclick="goStep(6)">
+        <div class="node">6<span class="step-num">6</span></div>
+        <div class="node-label">Refund<br><span style="font-size:.65rem;color:#555">(optional)</span></div>
+      </div>
+
+    </div>
+
+    <!-- STEP 1 — CREATE PAYMENT -->
+    <div class="panel visible" id="panel-1">
+      <div class="panel-title">Step 1 — Create Payment</div>
+      <div class="panel-sub">Register a new transaction with P24. You'll get a redirect URL to send the customer to.</div>
+      <div class="form-grid">
+        <div><label>Session ID</label><input id="cp-sessionId" type="text" placeholder="auto-generated" /></div>
+        <div><label>Amount (grosze)</label><input id="cp-amount" type="number" value="9900" /></div>
+        <div><label>Currency</label><input id="cp-currency" type="text" value="PLN" /></div>
+        <div><label>Description</label><input id="cp-description" type="text" value="Test payment" /></div>
+        <div><label>Customer Email</label><input id="cp-email" type="text" value="test@example.com" /></div>
+        <div><label>Customer Name</label><input id="cp-name" type="text" value="Jan Testowy" /></div>
+        <div><label>Country</label><input id="cp-country" type="text" value="PL" /></div>
+        <div><label>Language</label><input id="cp-language" type="text" value="pl" /></div>
+        <div class="full"><label>Return URL</label><input id="cp-returnUrl" type="text" value="https://example.com/return" /></div>
+        <div class="full"><label>Notify URL (IPN)</label><input id="cp-notifyUrl" type="text" value="" placeholder="optional — your webhook endpoint" /></div>
+      </div>
+      <div class="btn-row">
+        <button class="run" onclick="createPayment()">▶ Create Payment</button>
+      </div>
+      <div class="pay-link" id="pay-link">
+        <div style="flex:1">
+          <div style="font-size:.72rem;color:#4ade80;margin-bottom:4px">✓ Payment registered — open this URL to pay:</div>
+          <a id="pay-href" href="#" target="_blank"></a>
+        </div>
+        <button class="open-btn" onclick="document.getElementById('pay-href').click()">Open →</button>
+      </div>
+      <div class="result idle" id="cp-result">// result will appear here</div>
+    </div>
+
+    <!-- STEP 2 — CUSTOMER PAYS (external) -->
+    <div class="panel" id="panel-2">
+      <div class="panel-title">Step 2 — Customer Pays</div>
+      <div class="panel-sub">This step happens outside your system — on P24's hosted payment page.</div>
+      <div class="ext-step">
+        <strong>Open the payment URL in your browser</strong>
+        The URL was shown in Step 1. The customer selects a payment method and completes the payment on P24's page.<br><br>
+        For sandbox testing you can use a test card or BLIK code on <code>sandbox.przelewy24.pl</code>.
+        <br><br>
+        After paying, P24 sends a notification (IPN) to your Notify URL and redirects the customer to your Return URL.
+      </div>
+      <div style="margin-top:16px" class="pay-link" id="pay-link-2" style="display:none">
+        <div style="flex:1">
+          <div style="font-size:.72rem;color:#4ade80;margin-bottom:4px">Payment URL from Step 1:</div>
+          <a id="pay-href-2" href="#" target="_blank"></a>
+        </div>
+        <button class="open-btn" onclick="document.getElementById('pay-href-2').click()">Open →</button>
+      </div>
+      <div style="margin-top:20px" class="btn-row">
+        <button class="secondary" onclick="goStep(3)">I've paid — continue to Step 3 →</button>
+      </div>
+    </div>
+
+    <!-- STEP 3 — CHECK STATUS -->
+    <div class="panel" id="panel-3">
+      <div class="panel-title">Step 3 — Check Payment Status</div>
+      <div class="panel-sub">Poll the status of your transaction by session ID.</div>
+      <div id="ps-hint" class="propagated-hint visible">
+        <span>⬡</span> Session ID propagated from Step 1
+      </div>
+      <div class="form-grid">
+        <div class="full"><label>Session ID</label><input id="ps-sessionId" type="text" /></div>
+      </div>
+      <div class="btn-row">
+        <button class="run" onclick="paymentStatus()">▶ Get Status</button>
+        <button class="secondary" onclick="paymentStatusRaw()">Raw P24 Response</button>
+        <button class="secondary" onclick="goStep(4)">Continue to Step 4 →</button>
+      </div>
+      <div class="result idle" id="ps-result">// result will appear here</div>
+      <div class="result idle" id="ps-raw-result" style="display:none;margin-top:8px"></div>
+    </div>
+
+    <!-- STEP 4 — VALIDATE NOTIFICATION -->
+    <div class="panel" id="panel-4">
+      <div class="panel-title">Step 4 — Validate IPN Notification</div>
+      <div class="panel-sub">Verify the SHA-384 signature from P24's webhook notification. Fill in values from the POST body P24 sent to your Notify URL.</div>
+      <div id="vn-hint" class="propagated-hint">
+        <span>⬡</span> Session ID, amount and currency propagated from Step 1
+      </div>
+      <div class="form-grid">
+        <div><label>Session ID</label><input id="vn-sessionId" type="text" /></div>
+        <div><label>Provider Order ID</label><input id="vn-providerId" type="text" placeholder="from IPN body" /></div>
+        <div><label>Amount (grosze)</label><input id="vn-amount" type="number" /></div>
+        <div><label>Currency</label><input id="vn-currency" type="text" /></div>
+        <div><label>Origin Amount</label><input id="vn-originAmount" type="number" /></div>
+        <div><label>Method ID</label><input id="vn-methodId" type="number" value="0" /></div>
+        <div class="full"><label>Statement</label><input id="vn-statement" type="text" placeholder="from IPN body" /></div>
+        <div class="full"><label>Sign</label><input id="vn-sign" type="text" placeholder="SHA-384 signature from IPN body" /></div>
+      </div>
+      <div class="btn-row">
+        <button class="run" onclick="validateNotification()">▶ Validate</button>
+        <button class="secondary" onclick="goStep(5)">Continue to Step 5 →</button>
+      </div>
+      <div class="result idle" id="vn-result">// result will appear here</div>
+    </div>
+
+    <!-- STEP 5 — CONFIRM -->
+    <div class="panel" id="panel-5">
+      <div class="panel-title">Step 5 — Confirm Payment</div>
+      <div class="panel-sub">Call the P24 verify endpoint to settle the transaction. Must be called after a validated IPN notification.</div>
+      <div id="conf-hint" class="propagated-hint">
+        <span>⬡</span> Values propagated from previous steps
+      </div>
+      <div class="form-grid">
+        <div><label>Session ID</label><input id="conf-sessionId" type="text" /></div>
+        <div><label>Provider Order ID</label><input id="conf-providerId" type="text" placeholder="from IPN" /></div>
+        <div><label>Amount (grosze)</label><input id="conf-amount" type="number" /></div>
+        <div><label>Currency</label><input id="conf-currency" type="text" /></div>
+      </div>
+      <div class="btn-row">
+        <button class="run" onclick="confirmPayment()">▶ Confirm Payment</button>
+        <button class="secondary" onclick="goStep(6)">Continue to Step 6 →</button>
+      </div>
+      <div class="result idle" id="conf-result">// result will appear here</div>
+    </div>
+
+    <!-- STEP 6 — REFUND -->
+    <div class="panel" id="panel-6">
+      <div class="panel-title">Step 6 — Refund <span style="font-size:.8rem;font-weight:400;color:#666">(optional)</span></div>
+      <div class="panel-sub">Issue a full or partial refund for a completed payment.</div>
+      <div id="ref-hint" class="propagated-hint">
+        <span>⬡</span> Values propagated from previous steps
+      </div>
+      <div class="form-grid">
+        <div><label>Session ID</label><input id="ref-sessionId" type="text" /></div>
+        <div><label>Provider Order ID</label><input id="ref-providerId" type="text" /></div>
+        <div><label>Amount (grosze)</label><input id="ref-amount" type="number" /></div>
+        <div><label>Description</label><input id="ref-description" type="text" value="Refund" /></div>
+      </div>
+      <div class="btn-row">
+        <button class="run" onclick="refund()">▶ Refund</button>
+        <button class="secondary" onclick="refundRaw()">Raw P24 Response</button>
+      </div>
+      <div class="result idle" id="ref-result">// result will appear here</div>
+      <div class="result idle" id="ref-raw-result" style="display:none;margin-top:8px"></div>
+    </div>
+
+  </main>
+</div>
+
+<!-- IPN BAR -->
+<div class="ipn-bar">
+  <div class="ipn-bar-header" onclick="toggleIpnList()">
+    <span>📨 IPN Notifications</span>
+    <span class="ipn-badge" id="ipn-badge">0</span>
+    <span id="ipn-toggle-label" style="font-size:.72rem;color:#555;margin-left:auto">▲ expand</span>
+  </div>
+  <div class="ipn-list" id="ipn-list">
+    <div class="tunnel-hint">
+      P24 needs a public URL to send IPN — use a tunnel locally:
+      <code>ngrok http 5000</code> or <code>lt --port 5000</code> (localtunnel), then set the Notify URL to <code>https://&lt;tunnel&gt;/api/notify</code>
+    </div>
+    <div id="ipn-items"><span style="font-size:.78rem;color:#444">No notifications received yet.</span></div>
+  </div>
+</div>
+
+<script>
+// ── IPN polling ──────────────────────────────────────────
+let ipnCount = 0;
+let ipnOpen  = false;
+
+function toggleIpnList() {
+  ipnOpen = !ipnOpen;
+  document.getElementById('ipn-list').classList.toggle('open', ipnOpen);
+  document.getElementById('ipn-toggle-label').textContent = ipnOpen ? '▼ collapse' : '▲ expand';
+}
+
+function useIpn(sessionId, orderId, amount, currency, sign, originAmount, methodId, statement) {
+  prefill('vn-sessionId',   sessionId);
+  prefill('vn-providerId',  String(orderId));
+  prefill('vn-amount',      amount);
+  prefill('vn-currency',    currency);
+  prefill('vn-sign',        sign);
+  prefill('vn-originAmount',originAmount);
+  prefill('vn-methodId',    methodId);
+  prefill('vn-statement',   statement);
+  prefill('conf-sessionId', sessionId);
+  prefill('conf-providerId',String(orderId));
+  prefill('conf-amount',    amount);
+  prefill('conf-currency',  currency);
+  ctx.orderId = String(orderId);
+  ctx.sessionId = sessionId;
+  ctx.amount = amount;
+  ctx.currency = currency;
+  updateCtxDisplay();
+  unlock(4); unlock(5); unlock(6);
+  goStep(4);
+}
+
+async function pollNotifications() {
+  try {
+    const res = await fetch('/api/notifications');
+    if (!res.ok) return;
+    const items = await res.json();
+    if (items.length === ipnCount) return;
+    ipnCount = items.length;
+
+    const badge = document.getElementById('ipn-badge');
+    badge.textContent = ipnCount;
+    badge.classList.toggle('visible', ipnCount > 0);
+
+    // auto-open on first notification
+    if (ipnCount === 1 && !ipnOpen) toggleIpnList();
+
+    const container = document.getElementById('ipn-items');
+    container.innerHTML = items.map(n => `
+      <div class="ipn-row">
+        <div class="ipn-dot ${n.valid ? 'ok' : 'bad'}"></div>
+        <span class="ipn-session">${n.sessionId}</span>
+        <span class="ipn-meta">orderId ${n.orderId} · ${(n.amount/100).toFixed(2)} ${n.currency} · ${new Date(n.receivedAt).toLocaleTimeString()}</span>
+        <button class="ipn-use-btn" onclick='useIpn(
+          ${JSON.stringify(n.sessionId)},
+          ${n.orderId},
+          ${n.amount},
+          ${JSON.stringify(n.currency)},
+          ${JSON.stringify(n.sign)},
+          ${n.amount},
+          ${n.methodId},
+          ""
+        )'>Use →</button>
+      </div>`).join('');
+  } catch { /* server not running */ }
+}
+setInterval(pollNotifications, 3000);
+
+// ── load config from appsettings on startup ──────────────
+async function loadConfig() {
+  try {
+    const res = await fetch('/api/config');
+    if (!res.ok) return;
+    const c = await res.json();
+    if (c.MerchantId) document.getElementById('cMerchantId').value = c.MerchantId;
+    if (c.PosId)      document.getElementById('cPosId').value      = c.PosId;
+    if (c.ApiKey)     document.getElementById('cApiKey').value     = c.ApiKey;
+    if (c.CrcKey)     document.getElementById('cCrcKey').value     = c.CrcKey;
+    document.getElementById('cSandbox').checked = !!c.Sandbox;
+  } catch { /* no config file — user fills manually */ }
+
+  // pre-fill notify URL with our own endpoint
+  document.getElementById('cp-notifyUrl').value =
+    window.location.origin + '/api/notify';
+}
+loadConfig();
+pollNotifications();
+
+// ── state ────────────────────────────────────────────────
+const ctx = {
+  sessionId:  '',
+  orderId:    '',
+  amount:     '',
+  currency:   '',
+  payUrl:     '',
+  maxUnlocked: 1,
+};
+
+// ── navigation ───────────────────────────────────────────
+function goStep(n) {
+  if (n > ctx.maxUnlocked) return;
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('visible'));
+  document.getElementById('panel-' + n).classList.add('visible');
+  document.querySelectorAll('.flow-step').forEach(s => {
+    const sn = parseInt(s.dataset.step);
+    s.classList.remove('active', 'done', 'locked');
+    if (sn < n)  s.classList.add('done');
+    else if (sn === n) s.classList.add('active');
+    else if (sn <= ctx.maxUnlocked) s.classList.remove('locked');
+    else s.classList.add('locked');
+  });
+  document.querySelectorAll('.flow-arrow').forEach((a, i) => {
+    a.classList.toggle('propagated', (i + 1) < n);
+  });
+}
+
+function unlock(n) {
+  if (n > ctx.maxUnlocked) ctx.maxUnlocked = n;
+  document.getElementById('fstep-' + n)?.classList.remove('locked');
+}
+
+// ── credential headers ───────────────────────────────────
+function credHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'X-MerchantId': document.getElementById('cMerchantId').value,
+    'X-PosId':      document.getElementById('cPosId').value,
+    'X-ApiKey':     document.getElementById('cApiKey').value,
+    'X-CrcKey':     document.getElementById('cCrcKey').value,
+    'X-Sandbox':    document.getElementById('cSandbox').checked ? 'true' : 'false',
+  };
+}
+
+async function callApi(method, url, body) {
+  const opts = { method, headers: credHeaders() };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const res = await fetch(url, opts);
+  return res.json();
+}
+
+function showResult(id, data, isError) {
+  const el = document.getElementById(id);
+  el.textContent = JSON.stringify(data, null, 2);
+  el.className = 'result ' + (isError ? 'error' : 'ok');
+}
+
+// prefill a field and mark it visually
+function prefill(id, val) {
+  if (!val && val !== 0) return;
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.value = val;
+  el.classList.add('prefilled');
+}
+
+function updateCtxDisplay() {
+  document.getElementById('ctx-sessionId').value = ctx.sessionId || '';
+  document.getElementById('ctx-orderId').value   = ctx.orderId   || '';
+  document.getElementById('ctx-amount').value    = ctx.amount    || '';
+  document.getElementById('ctx-currency').value  = ctx.currency  || '';
+}
+
+// ── step 1 — create payment ──────────────────────────────
+async function createPayment() {
+  const sessionId = document.getElementById('cp-sessionId').value
+    || 'test-' + crypto.randomUUID().replace(/-/g,'').slice(0, 16);
+  document.getElementById('cp-sessionId').value = sessionId;
+
+  try {
+    const data = await callApi('POST', '/api/create-payment', {
+      SessionId:     sessionId,
+      Amount:        parseInt(document.getElementById('cp-amount').value),
+      Currency:      document.getElementById('cp-currency').value,
+      Description:   document.getElementById('cp-description').value,
+      CustomerEmail: document.getElementById('cp-email').value,
+      CustomerName:  document.getElementById('cp-name').value,
+      Country:       document.getElementById('cp-country').value,
+      Language:      document.getElementById('cp-language').value,
+      ReturnUrl:     document.getElementById('cp-returnUrl').value,
+      NotifyUrl:     document.getElementById('cp-notifyUrl').value || null,
+    });
+    showResult('cp-result', data, !data.Success);
+
+    if (data.Success) {
+      // store context
+      ctx.sessionId = sessionId;
+      ctx.amount    = document.getElementById('cp-amount').value;
+      ctx.currency  = document.getElementById('cp-currency').value;
+      ctx.payUrl    = data.RedirectUrl;
+      updateCtxDisplay();
+
+      // show pay link
+      const link = document.getElementById('pay-link');
+      link.className = 'pay-link visible';
+      document.getElementById('pay-href').href        = data.RedirectUrl;
+      document.getElementById('pay-href').textContent = data.RedirectUrl;
+
+      // propagate to all future steps
+      prefill('ps-sessionId',   ctx.sessionId);
+      prefill('vn-sessionId',   ctx.sessionId);
+      prefill('vn-amount',      ctx.amount);
+      prefill('vn-originAmount',ctx.amount);
+      prefill('vn-currency',    ctx.currency);
+      prefill('conf-sessionId', ctx.sessionId);
+      prefill('conf-amount',    ctx.amount);
+      prefill('conf-currency',  ctx.currency);
+      prefill('ref-sessionId',  ctx.sessionId);
+      prefill('ref-amount',     ctx.amount);
+
+      // show hints
+      document.getElementById('vn-hint').classList.add('visible');
+      document.getElementById('conf-hint').classList.add('visible');
+
+      // unlock steps
+      unlock(2); unlock(3);
+      // mirror pay link in step 2
+      const l2 = document.getElementById('pay-link-2');
+      l2.style.display = '';
+      l2.className = 'pay-link visible';
+      document.getElementById('pay-href-2').href        = data.RedirectUrl;
+      document.getElementById('pay-href-2').textContent = data.RedirectUrl;
+    }
+  } catch(e) {
+    showResult('cp-result', { error: e.message }, true);
+  }
+}
+
+// ── step 3 — payment status ──────────────────────────────
+async function paymentStatus() {
+  const sessionId = document.getElementById('ps-sessionId').value;
+  try {
+    const data = await callApi('GET', '/api/payment-status/' + encodeURIComponent(sessionId));
+    const isUnknown = !data.ProviderId && (data.State === 'Unknown' || data.State === 0);
+    if (isUnknown) {
+      data._note = 'Transaction registered but not yet paid. Complete payment at the P24 URL from Step 1, then poll again.';
+    }
+    showResult('ps-result', data, false);
+
+    // if P24 returned an orderId, propagate everything to downstream steps
+    if (data.ProviderId) {
+      ctx.orderId  = data.ProviderId;
+      ctx.amount   = data.Amount   || ctx.amount;
+      ctx.currency = data.Currency || ctx.currency;
+      updateCtxDisplay();
+
+      prefill('vn-sessionId',   ctx.sessionId);
+      prefill('vn-providerId',  ctx.orderId);
+      prefill('vn-amount',      ctx.amount);
+      prefill('vn-originAmount',ctx.amount);
+      prefill('vn-currency',    ctx.currency);
+      if (data.MethodId) prefill('vn-methodId', data.MethodId);
+
+      prefill('conf-sessionId', ctx.sessionId);
+      prefill('conf-providerId',ctx.orderId);
+      prefill('conf-amount',    ctx.amount);
+      prefill('conf-currency',  ctx.currency);
+
+      prefill('ref-sessionId',  ctx.sessionId);
+      prefill('ref-providerId', ctx.orderId);
+      prefill('ref-amount',     ctx.amount);
+
+      document.getElementById('vn-hint').classList.add('visible');
+      document.getElementById('conf-hint').classList.add('visible');
+      document.getElementById('ref-hint').classList.add('visible');
+      unlock(4); unlock(5); unlock(6);
+    }
+  } catch(e) {
+    showResult('ps-result', { error: e.message }, true);
+  }
+}
+
+// ── step 3 — raw p24 response (debug) ───────────────────
+async function paymentStatusRaw() {
+  const sessionId = document.getElementById('ps-sessionId').value;
+  const el = document.getElementById('ps-raw-result');
+  el.style.display = 'block';
+  el.className = 'result idle';
+  el.textContent = '// fetching raw P24 response…';
+  try {
+    const data = await callApi('GET', '/api/payment-status-raw/' + encodeURIComponent(sessionId));
+    el.textContent = JSON.stringify(data, null, 2);
+    el.className = 'result ok';
+  } catch(e) {
+    el.textContent = JSON.stringify({ error: e.message }, null, 2);
+    el.className = 'result error';
+  }
+}
+
+// ── step 6 — raw refund response (debug) ────────────────
+async function refundRaw() {
+  const amtVal = document.getElementById('ref-amount').value;
+  const el = document.getElementById('ref-raw-result');
+  el.style.display = 'block';
+  el.className = 'result idle';
+  el.textContent = '// fetching raw P24 response…';
+  try {
+    const data = await callApi('POST', '/api/refund-raw', {
+      SessionId:   document.getElementById('ref-sessionId').value,
+      ProviderId:  document.getElementById('ref-providerId').value,
+      Amount:      amtVal ? parseInt(amtVal) : null,
+      Description: document.getElementById('ref-description').value,
+    });
+    el.textContent = JSON.stringify(data, null, 2);
+    el.className = 'result ok';
+  } catch(e) {
+    el.textContent = JSON.stringify({ error: e.message }, null, 2);
+    el.className = 'result error';
+  }
+}
+
+// ── step 4 — validate notification ──────────────────────
+async function validateNotification() {
+  try {
+    const data = await callApi('POST', '/api/validate-notification', {
+      SessionId:  document.getElementById('vn-sessionId').value,
+      ProviderId: document.getElementById('vn-providerId').value,
+      Amount:     parseInt(document.getElementById('vn-amount').value),
+      Currency:   document.getElementById('vn-currency').value,
+      Sign:       document.getElementById('vn-sign').value,
+      RawFields: {
+        originAmount: document.getElementById('vn-originAmount').value,
+        methodId:     document.getElementById('vn-methodId').value,
+        statement:    document.getElementById('vn-statement').value,
+        merchantId:   document.getElementById('cMerchantId').value,
+        posId:        document.getElementById('cPosId').value,
+      },
+    });
+    showResult('vn-result', data, !data.valid);
+
+    if (data.valid) { unlock(5); }
+  } catch(e) {
+    showResult('vn-result', { error: e.message }, true);
+  }
+}
+
+// ── step 5 — confirm payment ─────────────────────────────
+async function confirmPayment() {
+  try {
+    const data = await callApi('POST', '/api/confirm-payment', {
+      SessionId:  document.getElementById('conf-sessionId').value,
+      ProviderId: document.getElementById('conf-providerId').value,
+      Amount:     parseInt(document.getElementById('conf-amount').value),
+      Currency:   document.getElementById('conf-currency').value,
+    });
+    showResult('conf-result', data, !data.Success);
+    if (data.Success) { unlock(6); }
+  } catch(e) {
+    showResult('conf-result', { error: e.message }, true);
+  }
+}
+
+// ── step 6 — refund ──────────────────────────────────────
+async function refund() {
+  const amtVal = document.getElementById('ref-amount').value;
+  try {
+    const data = await callApi('POST', '/api/refund', {
+      SessionId:   document.getElementById('ref-sessionId').value,
+      ProviderId:  document.getElementById('ref-providerId').value,
+      Amount:      amtVal ? parseInt(amtVal) : null,
+      Description: document.getElementById('ref-description').value,
+    });
+    showResult('ref-result', data, !data.Success);
+  } catch(e) {
+    showResult('ref-result', { error: e.message }, true);
+  }
+}
+</script>
+</body>
+</html>
