@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\src\PaymentsLibrary.csproj" />
+    <ProjectReference Include="..\src\Payment.Infrastructure.P24.csproj" />
   </ItemGroup>
 
   <ItemGroup>

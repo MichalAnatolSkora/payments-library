@@ -1,7 +1,7 @@
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
+using Payment.Infrastructure.P24.Providers.Przelewy24;
 using Payment.Models.Requests;
-using PaymentsLibrary.Providers.Przelewy24;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.ConfigureHttpJsonOptions(o =>

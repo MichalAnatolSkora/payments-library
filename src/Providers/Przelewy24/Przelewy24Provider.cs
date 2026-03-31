@@ -3,13 +3,13 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Payment.Infrastructure.P24.Abstractions;
+using Payment.Infrastructure.P24.Models;
+using Payment.Infrastructure.P24.Providers.Przelewy24.Models;
 using Payment.Models.Requests;
 using Payment.Models.Results;
-using PaymentsLibrary.Abstractions;
-using PaymentsLibrary.Models;
-using PaymentsLibrary.Providers.Przelewy24.Models;
 
-namespace PaymentsLibrary.Providers.Przelewy24;
+namespace Payment.Infrastructure.P24.Providers.Przelewy24;
 
 /// <summary>
 /// Przelewy24 (P24) implementation of <see cref="IPaymentProvider"/>.

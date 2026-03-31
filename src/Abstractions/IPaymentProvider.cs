@@ -1,8 +1,8 @@
+using Payment.Infrastructure.P24.Models;
 using Payment.Models.Requests;
 using Payment.Models.Results;
-using PaymentsLibrary.Models;
 
-namespace PaymentsLibrary.Abstractions;
+namespace Payment.Infrastructure.P24.Abstractions;
 
 /// <summary>
 /// Universal interface that every payment provider must implement.

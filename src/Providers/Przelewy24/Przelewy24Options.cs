@@ -1,4 +1,4 @@
-namespace PaymentsLibrary.Providers.Przelewy24;
+namespace Payment.Infrastructure.P24.Providers.Przelewy24;
 
 public sealed class Przelewy24Options
 {

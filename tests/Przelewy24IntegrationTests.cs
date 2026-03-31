@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Configuration;
+using Payment.Infrastructure.P24.Models;
+using Payment.Infrastructure.P24.Providers.Przelewy24;
 using Payment.Models.Requests;
-using PaymentsLibrary.Models;
-using PaymentsLibrary.Providers.Przelewy24;
 using Xunit.Abstractions;
 
 namespace PaymentsLibrary.Tests;

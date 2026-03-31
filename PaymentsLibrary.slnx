@@ -1,7 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="Payment.Models/Payment.Models.csproj" Id="e2940533-eeb9-447c-805a-59a659ed3521" />
-    <Project Path="src/PaymentsLibrary.csproj" />
+    <Project Path="src/Payment.Infrastructure.P24.csproj" />
   </Folder>
   <Folder Name="/testapp/">
     <Project Path="testapp/PaymentsLibrary.TestApp.csproj" />
