@@ -9,8 +9,9 @@ A lightweight .NET library for integrating with payment providers through a unif
 ## Quick Start
 
 ```csharp
-using PaymentsLibrary.Abstractions;
-using PaymentsLibrary.Providers.Przelewy24;
+using Payment.Infrastructure.P24.Abstractions;
+using Payment.Infrastructure.P24.Providers.Przelewy24;
+using Payment.Models.Requests;
 
 IPaymentProvider provider = new Przelewy24Provider(new Przelewy24Options
 {
