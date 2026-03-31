@@ -14,5 +14,7 @@ public sealed class RefundRequest
     /// </summary>
     public int? Amount { get; init; }
 
+    public string? Currency { get; init; }
+
     public string? Description { get; init; }
 }

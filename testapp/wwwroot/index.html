@@ -297,7 +297,10 @@ button.secondary:hover { background: #1e1b4b; }
       </div>
       <div class="btn-row">
         <button class="run" onclick="createPayment()">▶ Create Payment</button>
+        <button class="secondary" onclick="goStep(2)">Continue to Step 2 →</button>
+        <button class="secondary" onclick="createPaymentRaw()">Raw P24 Response</button>
       </div>
+      <div class="result idle" id="cp-raw-result" style="display:none;margin-top:8px"></div>
       <div class="pay-link" id="pay-link">
         <div style="flex:1">
           <div style="font-size:.72rem;color:#4ade80;margin-bottom:4px">✓ Payment registered — open this URL to pay:</div>
@@ -343,8 +346,8 @@ button.secondary:hover { background: #1e1b4b; }
       </div>
       <div class="btn-row">
         <button class="run" onclick="paymentStatus()">▶ Get Status</button>
-        <button class="secondary" onclick="paymentStatusRaw()">Raw P24 Response</button>
         <button class="secondary" onclick="goStep(4)">Continue to Step 4 →</button>
+        <button class="secondary" onclick="paymentStatusRaw()">Raw P24 Response</button>
       </div>
       <div class="result idle" id="ps-result">// result will appear here</div>
       <div class="result idle" id="ps-raw-result" style="display:none;margin-top:8px"></div>
@@ -390,7 +393,9 @@ button.secondary:hover { background: #1e1b4b; }
       <div class="btn-row">
         <button class="run" onclick="confirmPayment()">▶ Confirm Payment</button>
         <button class="secondary" onclick="goStep(6)">Continue to Step 6 →</button>
+        <button class="secondary" onclick="confirmPaymentRaw()">Raw P24 Response</button>
       </div>
+      <div class="result idle" id="conf-raw-result" style="display:none;margin-top:8px"></div>
       <div class="result idle" id="conf-result">// result will appear here</div>
     </div>
 
@@ -405,6 +410,7 @@ button.secondary:hover { background: #1e1b4b; }
         <div><label>Session ID</label><input id="ref-sessionId" type="text" /></div>
         <div><label>Provider Order ID</label><input id="ref-providerId" type="text" /></div>
         <div><label>Amount (grosze)</label><input id="ref-amount" type="number" /></div>
+        <div><label>Currency</label><input id="ref-currency" type="text" value="PLN" /></div>
         <div><label>Description</label><input id="ref-description" type="text" value="Refund" /></div>
       </div>
       <div class="btn-row">
@@ -572,7 +578,13 @@ async function callApi(method, url, body) {
   const opts = { method, headers: credHeaders() };
   if (body !== undefined) opts.body = JSON.stringify(body);
   const res = await fetch(url, opts);
-  return res.json();
+  const text = await res.text();
+  if (!text) throw new Error(`HTTP ${res.status} ${res.statusText} — empty response body`);
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`HTTP ${res.status} — non-JSON response: ${text.slice(0, 300)}`);
+  }
 }
 
 function showResult(id, data, isError) {
@@ -643,6 +655,7 @@ async function createPayment() {
       prefill('conf-currency',  ctx.currency);
       prefill('ref-sessionId',  ctx.sessionId);
       prefill('ref-amount',     ctx.amount);
+      prefill('ref-currency',   ctx.currency);
 
       // show hints
       document.getElementById('vn-hint').classList.add('visible');
@@ -695,6 +708,7 @@ async function paymentStatus() {
       prefill('ref-sessionId',  ctx.sessionId);
       prefill('ref-providerId', ctx.orderId);
       prefill('ref-amount',     ctx.amount);
+      prefill('ref-currency',   ctx.currency);
 
       document.getElementById('vn-hint').classList.add('visible');
       document.getElementById('conf-hint').classList.add('visible');
@@ -703,6 +717,56 @@ async function paymentStatus() {
     }
   } catch(e) {
     showResult('ps-result', { error: e.message }, true);
+  }
+}
+
+// ── step 1 — raw create-payment response (debug) ────────
+async function createPaymentRaw() {
+  const el = document.getElementById('cp-raw-result');
+  el.style.display = 'block';
+  el.className = 'result idle';
+  el.textContent = '// fetching raw P24 response…';
+  try {
+    const sessionId = document.getElementById('cp-sessionId').value
+      || 'test-' + crypto.randomUUID().replace(/-/g,'').slice(0, 16);
+    const data = await callApi('POST', '/api/create-payment-raw', {
+      SessionId:     sessionId,
+      Amount:        parseInt(document.getElementById('cp-amount').value),
+      Currency:      document.getElementById('cp-currency').value,
+      Description:   document.getElementById('cp-description').value,
+      CustomerEmail: document.getElementById('cp-email').value,
+      CustomerName:  document.getElementById('cp-name').value,
+      Country:       document.getElementById('cp-country').value,
+      Language:      document.getElementById('cp-language').value,
+      ReturnUrl:     document.getElementById('cp-returnUrl').value,
+      NotifyUrl:     document.getElementById('cp-notifyUrl').value || null,
+    });
+    el.textContent = JSON.stringify(data, null, 2);
+    el.className = 'result ok';
+  } catch(e) {
+    el.textContent = JSON.stringify({ error: e.message }, null, 2);
+    el.className = 'result error';
+  }
+}
+
+// ── step 5 — raw confirm-payment response (debug) ───────
+async function confirmPaymentRaw() {
+  const el = document.getElementById('conf-raw-result');
+  el.style.display = 'block';
+  el.className = 'result idle';
+  el.textContent = '// fetching raw P24 response…';
+  try {
+    const data = await callApi('POST', '/api/confirm-payment-raw', {
+      SessionId:  document.getElementById('conf-sessionId').value,
+      ProviderId: document.getElementById('conf-providerId').value,
+      Amount:     parseInt(document.getElementById('conf-amount').value),
+      Currency:   document.getElementById('conf-currency').value,
+    });
+    el.textContent = JSON.stringify(data, null, 2);
+    el.className = 'result ok';
+  } catch(e) {
+    el.textContent = JSON.stringify({ error: e.message }, null, 2);
+    el.className = 'result error';
   }
 }
 
@@ -735,6 +799,7 @@ async function refundRaw() {
       SessionId:   document.getElementById('ref-sessionId').value,
       ProviderId:  document.getElementById('ref-providerId').value,
       Amount:      amtVal ? parseInt(amtVal) : null,
+      Currency:    document.getElementById('ref-currency').value || null,
       Description: document.getElementById('ref-description').value,
     });
     el.textContent = JSON.stringify(data, null, 2);
@@ -794,6 +859,7 @@ async function refund() {
       SessionId:   document.getElementById('ref-sessionId').value,
       ProviderId:  document.getElementById('ref-providerId').value,
       Amount:      amtVal ? parseInt(amtVal) : null,
+      Currency:    document.getElementById('ref-currency').value || null,
       Description: document.getElementById('ref-description').value,
     });
     showResult('ref-result', data, !data.Success);

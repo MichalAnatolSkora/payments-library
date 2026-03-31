@@ -35,17 +35,23 @@ app.MapGet("/api/config", (IConfiguration config) =>
 // ---------------------------------------------------------------------------
 // Helper — build a provider from request headers
 // ---------------------------------------------------------------------------
-static Przelewy24Provider ProviderFromHeaders(HttpRequest req)
+static Przelewy24Options OptionsFromHeaders(HttpRequest req) => new()
 {
-    var options = new Przelewy24Options
-    {
-        MerchantId = int.Parse(req.Headers["X-MerchantId"].ToString()),
-        PosId = int.Parse(req.Headers["X-PosId"].ToString()),
-        ApiKey = req.Headers["X-ApiKey"].ToString(),
-        CrcKey = req.Headers["X-CrcKey"].ToString(),
-        Sandbox = req.Headers["X-Sandbox"].ToString().ToLower() is "true" or "1",
-    };
-    return new Przelewy24Provider(options, new HttpClient());
+    MerchantId = int.Parse(req.Headers["X-MerchantId"].ToString()),
+    PosId      = int.Parse(req.Headers["X-PosId"].ToString()),
+    ApiKey     = req.Headers["X-ApiKey"].ToString(),
+    CrcKey     = req.Headers["X-CrcKey"].ToString(),
+    Sandbox    = req.Headers["X-Sandbox"].ToString().ToLower() is "true" or "1",
+};
+
+static Przelewy24Provider ProviderFromHeaders(HttpRequest req)
+    => new(OptionsFromHeaders(req), new HttpClient());
+
+static (Przelewy24Provider provider, CapturingHandler handler) ProviderWithCapture(HttpRequest req)
+{
+    var capturing = new CapturingHandler();
+    var provider  = new Przelewy24Provider(OptionsFromHeaders(req), new HttpClient(capturing));
+    return (provider, capturing);
 }
 
 // ---------------------------------------------------------------------------
@@ -58,6 +64,16 @@ app.MapPost("/api/create-payment", async (
     var provider = ProviderFromHeaders(req);
     var result = await provider.CreatePaymentAsync(body);
     return Results.Ok(result);
+});
+
+// DEBUG: raw P24 response for create-payment (uses real provider + signature)
+app.MapPost("/api/create-payment-raw", async (
+    HttpRequest req,
+    [FromBody] CreatePaymentRequest body) =>
+{
+    var (provider, handler) = ProviderWithCapture(req);
+    await provider.CreatePaymentAsync(body);
+    return Results.Ok(handler.Capture());
 });
 
 // ---------------------------------------------------------------------------
@@ -77,26 +93,9 @@ app.MapGet("/api/payment-status-raw/{sessionId}", async (
     HttpRequest req,
     string sessionId) =>
 {
-    var options = new Przelewy24Options
-    {
-        MerchantId = int.Parse(req.Headers["X-MerchantId"].ToString()),
-        PosId = int.Parse(req.Headers["X-PosId"].ToString()),
-        ApiKey = req.Headers["X-ApiKey"].ToString(),
-        CrcKey = req.Headers["X-CrcKey"].ToString(),
-        Sandbox = req.Headers["X-Sandbox"].ToString().ToLower() is "true" or "1",
-    };
-    using var http = new HttpClient();
-    var credentials = Convert.ToBase64String(
-        System.Text.Encoding.ASCII.GetBytes($"{options.PosId}:{options.ApiKey}"));
-    http.DefaultRequestHeaders.Authorization =
-        new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", credentials);
-    http.BaseAddress = new Uri(options.Sandbox
-        ? "https://sandbox.przelewy24.pl"
-        : "https://secure.przelewy24.pl");
-
-    var response = await http.GetAsync($"/api/v1/transaction/by/sessionId/{Uri.EscapeDataString(sessionId)}");
-    var body = await response.Content.ReadAsStringAsync();
-    return Results.Ok(new { StatusCode = (int)response.StatusCode, Body = body });
+    var (provider, handler) = ProviderWithCapture(req);
+    await provider.GetPaymentStatusAsync(sessionId);
+    return Results.Ok(handler.Capture());
 });
 
 // ---------------------------------------------------------------------------
@@ -109,6 +108,16 @@ app.MapPost("/api/confirm-payment", async (
     var provider = ProviderFromHeaders(req);
     var result = await provider.ConfirmPaymentAsync(body);
     return Results.Ok(result);
+});
+
+// DEBUG: raw P24 response for confirm-payment (uses real provider + signature)
+app.MapPost("/api/confirm-payment-raw", async (
+    HttpRequest req,
+    [FromBody] ConfirmPaymentRequest body) =>
+{
+    var (provider, handler) = ProviderWithCapture(req);
+    await provider.ConfirmPaymentAsync(body);
+    return Results.Ok(handler.Capture());
 });
 
 // ---------------------------------------------------------------------------
@@ -140,36 +149,9 @@ app.MapPost("/api/refund-raw", async (
     HttpRequest req,
     [FromBody] RefundRequest body) =>
 {
-    var options = new Przelewy24Options
-    {
-        MerchantId = int.Parse(req.Headers["X-MerchantId"].ToString()),
-        PosId = int.Parse(req.Headers["X-PosId"].ToString()),
-        ApiKey = req.Headers["X-ApiKey"].ToString(),
-        CrcKey = req.Headers["X-CrcKey"].ToString(),
-        Sandbox = req.Headers["X-Sandbox"].ToString().ToLower() is "true" or "1",
-    };
-    using var http = new HttpClient();
-    var credentials = Convert.ToBase64String(
-        System.Text.Encoding.ASCII.GetBytes($"{options.PosId}:{options.ApiKey}"));
-    http.DefaultRequestHeaders.Authorization =
-        new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", credentials);
-    http.BaseAddress = new Uri(options.Sandbox
-        ? "https://sandbox.przelewy24.pl"
-        : "https://secure.przelewy24.pl");
-
-    if (!long.TryParse(body.ProviderId, out var orderId))
-    {
-        return Results.BadRequest(new { error = "invalid ProviderId" });
-    }
-
-    var payload = new
-    {
-        requestId = Guid.NewGuid().ToString(),
-        refunds = new[] { new { orderId, sessionId = body.SessionId, amount = body.Amount, description = body.Description } },
-    };
-    var response = await http.PostAsJsonAsync("/api/v1/transaction/refund", payload);
-    var raw = await response.Content.ReadAsStringAsync();
-    return Results.Ok(new { StatusCode = (int)response.StatusCode, Body = raw });
+    var (provider, handler) = ProviderWithCapture(req);
+    await provider.RefundAsync(body);
+    return Results.Ok(handler.Capture());
 });
 
 // ---------------------------------------------------------------------------
@@ -285,3 +267,49 @@ internal record ReceivedNotification(
     int MethodId,
     string Sign,
     bool Valid);
+
+internal sealed class CapturingHandler : DelegatingHandler
+{
+    private string _reqMethod  = "";
+    private string _reqUrl     = "";
+    private string _reqHeaders = "";
+    private string _reqBody    = "";
+    private int    _statusCode;
+    private string _resHeaders = "";
+    private string _resBody    = "";
+
+    public CapturingHandler() : base(new HttpClientHandler()) { }
+
+    protected override async Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        _reqMethod  = request.Method.Method;
+        _reqUrl     = request.RequestUri?.ToString() ?? "";
+        _reqHeaders = FormatHeaders(request.Headers);
+        if (request.Content is not null)
+        {
+            _reqBody = await request.Content.ReadAsStringAsync(cancellationToken);
+            request.Content = new StringContent(_reqBody,
+                System.Text.Encoding.UTF8,
+                request.Content.Headers.ContentType?.MediaType ?? "application/json");
+        }
+
+        var response = await base.SendAsync(request, cancellationToken);
+        _statusCode = (int)response.StatusCode;
+        _resHeaders = FormatHeaders(response.Headers);
+        _resBody    = await response.Content.ReadAsStringAsync(cancellationToken);
+        response.Content = new StringContent(_resBody,
+            System.Text.Encoding.UTF8,
+            response.Content.Headers.ContentType?.MediaType ?? "application/json");
+        return response;
+    }
+
+    public object Capture() => new
+    {
+        Request = new { Method = _reqMethod, Url = _reqUrl, Headers = _reqHeaders, Body = _reqBody },
+        Response = new { StatusCode = _statusCode, Headers = _resHeaders, Body = _resBody },
+    };
+
+    private static string FormatHeaders(System.Net.Http.Headers.HttpHeaders headers)
+        => string.Join("\n", headers.Select(h => $"{h.Key}: {string.Join(", ", h.Value)}"));
+}

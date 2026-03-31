@@ -188,9 +188,17 @@ public sealed class Przelewy24Provider : IPaymentProvider
             return RefundResult.Fail("amount_required", "P24 refunds require an explicit Amount.");
         }
 
+        var currency    = request.Currency ?? "PLN";
+        var requestId   = Guid.NewGuid().ToString();
+        var refundsUuid = Guid.NewGuid().ToString();
+        var sign        = ComputeRefundSign(refundsUuid, request.Amount.Value, currency);
+
         var body = new RefundTransactionRequest
         {
-            RequestId = Guid.NewGuid().ToString(),
+            MerchantId  = _options.MerchantId,
+            PosId       = _options.PosId,
+            RequestId   = requestId,
+            RefundsUuid = refundsUuid,
             Refunds =
             [
                 new RefundItem
@@ -198,9 +206,11 @@ public sealed class Przelewy24Provider : IPaymentProvider
                     OrderId     = orderId,
                     SessionId   = request.SessionId,
                     Amount      = request.Amount.Value,
+                    Currency    = currency,
                     Description = request.Description,
                 }
             ],
+            Sign = sign,
         };
 
         var response = await _http.PostAsJsonAsync("/api/v1/transaction/refund", body, cancellationToken);
@@ -236,6 +246,20 @@ public sealed class Przelewy24Provider : IPaymentProvider
         {
             sessionId,
             orderId,
+            amount,
+            currency,
+            crc = _options.CrcKey,
+        });
+        return Sha384Hex(payload);
+    }
+
+    /// <summary>SHA-384 sign for /transaction/refund.</summary>
+    private string ComputeRefundSign(string refundsUuid, int amount, string currency)
+    {
+        var payload = JsonSerializer.Serialize(new
+        {
+            refundsUuid,
+            merchantId = _options.MerchantId,
             amount,
             currency,
             crc = _options.CrcKey,
