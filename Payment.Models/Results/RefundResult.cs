@@ -1,4 +1,4 @@
-namespace PaymentsLibrary.Abstractions;
+namespace Payment.Models.Results;
 
 public sealed class RefundResult
 {

@@ -1,4 +1,4 @@
-namespace PaymentsLibrary.Abstractions;
+namespace Payment.Models.Requests;
 
 /// <summary>
 /// Normalised representation of an inbound IPN / webhook notification.

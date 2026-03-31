@@ -3,7 +3,10 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Payment.Models.Requests;
+using Payment.Models.Results;
 using PaymentsLibrary.Abstractions;
+using PaymentsLibrary.Models;
 using PaymentsLibrary.Providers.Przelewy24.Models;
 
 namespace PaymentsLibrary.Providers.Przelewy24;
@@ -44,26 +47,28 @@ public sealed class Przelewy24Provider : IPaymentProvider
 
         var body = new RegisterTransactionRequest
         {
-            MerchantId  = _options.MerchantId,
-            PosId       = _options.PosId,
-            SessionId   = request.SessionId,
-            Amount      = request.Amount,
-            Currency    = request.Currency,
+            MerchantId = _options.MerchantId,
+            PosId = _options.PosId,
+            SessionId = request.SessionId,
+            Amount = request.Amount,
+            Currency = request.Currency,
             Description = request.Description,
-            Email       = request.CustomerEmail,
-            UrlReturn   = request.ReturnUrl,
-            UrlStatus   = request.NotifyUrl,
-            Client      = request.CustomerName,
-            Country     = request.Country ?? "PL",
-            Language    = request.Language,
-            Sign        = sign,
+            Email = request.CustomerEmail,
+            UrlReturn = request.ReturnUrl,
+            UrlStatus = request.NotifyUrl,
+            Client = request.CustomerName,
+            Country = request.Country ?? "PL",
+            Language = request.Language,
+            Sign = sign,
         };
 
         var response = await _http.PostAsJsonAsync("/api/v1/transaction/register", body, cancellationToken);
-        var result   = await ReadJsonOrNull<P24ApiResponse<RegisterTransactionData>>(response, cancellationToken);
+        var result = await ReadJsonOrNull<P24ApiResponse<RegisterTransactionData>>(response, cancellationToken);
 
         if (result?.Data is null)
+        {
             return CreatePaymentResult.Fail(result?.Error ?? "unknown", result?.ErrorMessage ?? "Registration failed.");
+        }
 
         var baseUrl = _options.Sandbox
             ? "https://sandbox.przelewy24.pl"
@@ -83,22 +88,24 @@ public sealed class Przelewy24Provider : IPaymentProvider
 
         var data = result?.Data;
         if (data is null)
+        {
             return new PaymentStatus
             {
                 SessionId = sessionId,
-                Amount    = 0,
-                Currency  = string.Empty,
-                State     = PaymentState.Unknown,
+                Amount = 0,
+                Currency = string.Empty,
+                State = PaymentState.Unknown,
             };
+        }
 
         return new PaymentStatus
         {
-            SessionId  = data.SessionId,
+            SessionId = data.SessionId,
             ProviderId = data.OrderId.ToString(),
-            Amount     = data.Amount,
-            Currency   = data.Currency,
-            State      = MapState(data.Status),
-            MethodId   = data.MethodId?.ToString(),
+            Amount = data.Amount,
+            Currency = data.Currency,
+            State = MapState(data.Status),
+            MethodId = data.MethodId?.ToString(),
         };
 
     }
@@ -106,30 +113,32 @@ public sealed class Przelewy24Provider : IPaymentProvider
     public bool ValidateNotification(PaymentNotification notification)
     {
         if (!long.TryParse(notification.ProviderId, out var orderId))
+        {
             return false;
+        }
 
         // P24 webhook signature requires several specific fields.
         // We attempt to extract them from RawFields, falling back to logical defaults.
         // However, for a real webhook, if RawFields lacks 'statement' or 'methodId', validation will likely fail
         // because the computed hash won't match the one Przelewy24 generated.
-        
-        var merchantId = notification.RawFields.TryGetValue("merchantId", out var mId) && int.TryParse(mId, out var parsedMId) 
+
+        var merchantId = notification.RawFields.TryGetValue("merchantId", out var mId) && int.TryParse(mId, out var parsedMId)
             ? parsedMId : _options.MerchantId;
 
-        var posId = notification.RawFields.TryGetValue("posId", out var pId) && int.TryParse(pId, out var parsedPId) 
+        var posId = notification.RawFields.TryGetValue("posId", out var pId) && int.TryParse(pId, out var parsedPId)
             ? parsedPId : _options.PosId;
 
-        var originAmount = notification.RawFields.TryGetValue("originAmount", out var oAmt) && int.TryParse(oAmt, out var parsedOAmt) 
+        var originAmount = notification.RawFields.TryGetValue("originAmount", out var oAmt) && int.TryParse(oAmt, out var parsedOAmt)
             ? parsedOAmt : notification.Amount;
 
-        var methodId = notification.RawFields.TryGetValue("methodId", out var methId) && int.TryParse(methId, out var parsedMethId) 
+        var methodId = notification.RawFields.TryGetValue("methodId", out var methId) && int.TryParse(methId, out var parsedMethId)
             ? parsedMethId : 0;
 
-        var statement = notification.RawFields.TryGetValue("statement", out var stmt) 
+        var statement = notification.RawFields.TryGetValue("statement", out var stmt)
             ? stmt : string.Empty;
 
         var expected = ComputeWebhookSign(
-            merchantId, posId, notification.SessionId, notification.Amount, originAmount, 
+            merchantId, posId, notification.SessionId, notification.Amount, originAmount,
             notification.Currency, orderId, methodId, statement);
 
         return string.Equals(expected, notification.Sign, StringComparison.OrdinalIgnoreCase);
@@ -140,23 +149,25 @@ public sealed class Przelewy24Provider : IPaymentProvider
         CancellationToken cancellationToken = default)
     {
         if (!long.TryParse(request.ProviderId, out var orderId))
+        {
             return ConfirmPaymentResult.Fail("invalid_provider_id", "ProviderId must be a numeric P24 orderId.");
+        }
 
         var sign = ComputeNotifySign(request.SessionId, orderId, request.Amount, request.Currency);
 
         var body = new VerifyTransactionRequest
         {
             MerchantId = _options.MerchantId,
-            PosId      = _options.PosId,
-            SessionId  = request.SessionId,
-            Amount     = request.Amount,
-            Currency   = request.Currency,
-            OrderId    = orderId,
-            Sign       = sign,
+            PosId = _options.PosId,
+            SessionId = request.SessionId,
+            Amount = request.Amount,
+            Currency = request.Currency,
+            OrderId = orderId,
+            Sign = sign,
         };
 
         var response = await _http.PutAsJsonAsync("/api/v1/transaction/verify", body, cancellationToken);
-        var result   = await ReadJsonOrNull<P24ApiResponse<JsonElement>>(response, cancellationToken);
+        var result = await ReadJsonOrNull<P24ApiResponse<JsonElement>>(response, cancellationToken);
 
         return result?.Error is null
             ? ConfirmPaymentResult.Ok()
@@ -168,15 +179,19 @@ public sealed class Przelewy24Provider : IPaymentProvider
         CancellationToken cancellationToken = default)
     {
         if (!long.TryParse(request.ProviderId, out var orderId))
+        {
             return RefundResult.Fail("invalid_provider_id", "ProviderId must be a numeric P24 orderId.");
+        }
 
         if (request.Amount is null)
+        {
             return RefundResult.Fail("amount_required", "P24 refunds require an explicit Amount.");
+        }
 
         var body = new RefundTransactionRequest
         {
             RequestId = Guid.NewGuid().ToString(),
-            Refunds   =
+            Refunds =
             [
                 new RefundItem
                 {
@@ -189,7 +204,7 @@ public sealed class Przelewy24Provider : IPaymentProvider
         };
 
         var response = await _http.PostAsJsonAsync("/api/v1/transaction/refund", body, cancellationToken);
-        var result   = await ReadJsonOrNull<P24ApiResponse<JsonElement>>(response, cancellationToken);
+        var result = await ReadJsonOrNull<P24ApiResponse<JsonElement>>(response, cancellationToken);
 
         return result?.Error is null
             ? RefundResult.Ok()
@@ -263,7 +278,10 @@ public sealed class Przelewy24Provider : IPaymentProvider
     {
         var contentType = response.Content.Headers.ContentType?.MediaType ?? "";
         if (!contentType.Contains("json", StringComparison.OrdinalIgnoreCase))
+        {
             return default;
+        }
+
         try
         {
             return await response.Content.ReadFromJsonAsync<T>(cancellationToken: ct);

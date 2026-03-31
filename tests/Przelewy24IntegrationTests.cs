@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
-using PaymentsLibrary.Abstractions;
+using Payment.Models.Requests;
+using PaymentsLibrary.Models;
 using PaymentsLibrary.Providers.Przelewy24;
 using Xunit.Abstractions;
 
@@ -18,7 +19,7 @@ public sealed class Przelewy24IntegrationTests : IDisposable
     public Przelewy24IntegrationTests(ITestOutputHelper output)
     {
         _output = output;
-        
+
         var config = new ConfigurationBuilder()
             .AddJsonFile("appsettings.Development.json", optional: false)
             .Build();
@@ -52,16 +53,16 @@ public sealed class Przelewy24IntegrationTests : IDisposable
     {
         var result = await _provider.CreatePaymentAsync(new CreatePaymentRequest
         {
-            SessionId     = $"test-{Guid.NewGuid():N}",
-            Amount        = 100,   // 1.00 PLN
-            Currency      = "PLN",
-            Description   = "Integration test payment",
+            SessionId = $"test-{Guid.NewGuid():N}",
+            Amount = 100,   // 1.00 PLN
+            Currency = "PLN",
+            Description = "Integration test payment",
             CustomerEmail = "test@example.com",
-            ReturnUrl     = "https://example.com/return",
-            NotifyUrl     = "https://example.com/notify",
-            CustomerName  = "Jan Testowy",
-            Country       = "PL",
-            Language      = "pl",
+            ReturnUrl = "https://example.com/return",
+            NotifyUrl = "https://example.com/notify",
+            CustomerName = "Jan Testowy",
+            Country = "PL",
+            Language = "pl",
         });
 
         Assert.True(result.Success, $"Expected success. Error: {result.ErrorCode} – {result.ErrorMessage}");
@@ -79,13 +80,13 @@ public sealed class Przelewy24IntegrationTests : IDisposable
     {
         var result = await _provider.CreatePaymentAsync(new CreatePaymentRequest
         {
-            SessionId     = $"test-{Guid.NewGuid():N}",
-            Amount        = 100,
-            Currency      = "XYZ",   // unsupported currency
-            Description   = "Should fail",
+            SessionId = $"test-{Guid.NewGuid():N}",
+            Amount = 100,
+            Currency = "XYZ",   // unsupported currency
+            Description = "Should fail",
             CustomerEmail = "test@example.com",
-            ReturnUrl     = "https://example.com/return",
-            Country       = "PL",
+            ReturnUrl = "https://example.com/return",
+            Country = "PL",
         });
 
         Assert.False(result.Success);
@@ -104,14 +105,14 @@ public sealed class Przelewy24IntegrationTests : IDisposable
         // Register first so the session exists on P24's side
         var created = await _provider.CreatePaymentAsync(new CreatePaymentRequest
         {
-            SessionId     = sessionId,
-            Amount        = 100,
-            Currency      = "PLN",
-            Description   = "Status check test",
+            SessionId = sessionId,
+            Amount = 100,
+            Currency = "PLN",
+            Description = "Status check test",
             CustomerEmail = "test@example.com",
-            ReturnUrl     = "https://example.com/return",
-            Country       = "PL",
-            Language      = "pl",
+            ReturnUrl = "https://example.com/return",
+            Country = "PL",
+            Language = "pl",
         });
 
         Assert.True(created.Success, $"CreatePayment failed: {created.ErrorCode} – {created.ErrorMessage}");
@@ -148,9 +149,9 @@ public sealed class Przelewy24IntegrationTests : IDisposable
         // an actual IPN in a unit context, we recompute the sign ourselves using
         // the same algorithm and verify the provider accepts it.
         var sessionId = "test-session-sign-check";
-        var orderId   = 12345;
-        var amount    = 200;
-        var currency  = "PLN";
+        var orderId = 12345;
+        var amount = 200;
+        var currency = "PLN";
 
         var config = new ConfigurationBuilder()
             .AddJsonFile("appsettings.Development.json", optional: false)
@@ -164,12 +165,12 @@ public sealed class Przelewy24IntegrationTests : IDisposable
 
         var notification = new PaymentNotification
         {
-            SessionId  = sessionId,
+            SessionId = sessionId,
             ProviderId = orderId.ToString(),
-            Amount     = amount,
-            Currency   = currency,
-            Sign       = sign,
-            RawFields  = new Dictionary<string, string>
+            Amount = amount,
+            Currency = currency,
+            Sign = sign,
+            RawFields = new Dictionary<string, string>
             {
                 { "merchantId", merchantId.ToString() },
                 { "posId", posId.ToString() },
@@ -187,11 +188,11 @@ public sealed class Przelewy24IntegrationTests : IDisposable
     {
         var notification = new PaymentNotification
         {
-            SessionId  = "test-session",
+            SessionId = "test-session",
             ProviderId = "12345",
-            Amount     = 200,
-            Currency   = "PLN",
-            Sign       = "invalidsignature",
+            Amount = 200,
+            Currency = "PLN",
+            Sign = "invalidsignature",
         };
 
         Assert.False(_provider.ValidateNotification(notification));
@@ -205,7 +206,7 @@ public sealed class Przelewy24IntegrationTests : IDisposable
     /// Replicates the SHA-384 sign formula so we can build valid test notifications.
     /// </summary>
     private static string ComputeExpectedSign(
-        int merchantId, int posId, string sessionId, int orderId, int amount, 
+        int merchantId, int posId, string sessionId, int orderId, int amount,
         int originAmount, string currency, int methodId, string statement)
     {
         // Read CRC from config — same key the provider uses

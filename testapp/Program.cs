@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
-using PaymentsLibrary.Abstractions;
+using Payment.Models.Requests;
 using PaymentsLibrary.Providers.Przelewy24;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -25,10 +25,10 @@ app.MapGet("/api/config", (IConfiguration config) =>
     return Results.Ok(new
     {
         MerchantId = section.GetValue<int>("MerchantId"),
-        PosId      = section.GetValue<int>("PosId"),
-        ApiKey     = section.GetValue<string>("ApiKey") ?? "",
-        CrcKey     = section.GetValue<string>("CrcKey") ?? "",
-        Sandbox    = section.GetValue<bool>("Sandbox"),
+        PosId = section.GetValue<int>("PosId"),
+        ApiKey = section.GetValue<string>("ApiKey") ?? "",
+        CrcKey = section.GetValue<string>("CrcKey") ?? "",
+        Sandbox = section.GetValue<bool>("Sandbox"),
     });
 });
 
@@ -40,10 +40,10 @@ static Przelewy24Provider ProviderFromHeaders(HttpRequest req)
     var options = new Przelewy24Options
     {
         MerchantId = int.Parse(req.Headers["X-MerchantId"].ToString()),
-        PosId      = int.Parse(req.Headers["X-PosId"].ToString()),
-        ApiKey     = req.Headers["X-ApiKey"].ToString(),
-        CrcKey     = req.Headers["X-CrcKey"].ToString(),
-        Sandbox    = req.Headers["X-Sandbox"].ToString().ToLower() is "true" or "1",
+        PosId = int.Parse(req.Headers["X-PosId"].ToString()),
+        ApiKey = req.Headers["X-ApiKey"].ToString(),
+        CrcKey = req.Headers["X-CrcKey"].ToString(),
+        Sandbox = req.Headers["X-Sandbox"].ToString().ToLower() is "true" or "1",
     };
     return new Przelewy24Provider(options, new HttpClient());
 }
@@ -80,10 +80,10 @@ app.MapGet("/api/payment-status-raw/{sessionId}", async (
     var options = new Przelewy24Options
     {
         MerchantId = int.Parse(req.Headers["X-MerchantId"].ToString()),
-        PosId      = int.Parse(req.Headers["X-PosId"].ToString()),
-        ApiKey     = req.Headers["X-ApiKey"].ToString(),
-        CrcKey     = req.Headers["X-CrcKey"].ToString(),
-        Sandbox    = req.Headers["X-Sandbox"].ToString().ToLower() is "true" or "1",
+        PosId = int.Parse(req.Headers["X-PosId"].ToString()),
+        ApiKey = req.Headers["X-ApiKey"].ToString(),
+        CrcKey = req.Headers["X-CrcKey"].ToString(),
+        Sandbox = req.Headers["X-Sandbox"].ToString().ToLower() is "true" or "1",
     };
     using var http = new HttpClient();
     var credentials = Convert.ToBase64String(
@@ -143,10 +143,10 @@ app.MapPost("/api/refund-raw", async (
     var options = new Przelewy24Options
     {
         MerchantId = int.Parse(req.Headers["X-MerchantId"].ToString()),
-        PosId      = int.Parse(req.Headers["X-PosId"].ToString()),
-        ApiKey     = req.Headers["X-ApiKey"].ToString(),
-        CrcKey     = req.Headers["X-CrcKey"].ToString(),
-        Sandbox    = req.Headers["X-Sandbox"].ToString().ToLower() is "true" or "1",
+        PosId = int.Parse(req.Headers["X-PosId"].ToString()),
+        ApiKey = req.Headers["X-ApiKey"].ToString(),
+        CrcKey = req.Headers["X-CrcKey"].ToString(),
+        Sandbox = req.Headers["X-Sandbox"].ToString().ToLower() is "true" or "1",
     };
     using var http = new HttpClient();
     var credentials = Convert.ToBase64String(
@@ -158,12 +158,14 @@ app.MapPost("/api/refund-raw", async (
         : "https://secure.przelewy24.pl");
 
     if (!long.TryParse(body.ProviderId, out var orderId))
+    {
         return Results.BadRequest(new { error = "invalid ProviderId" });
+    }
 
     var payload = new
     {
         requestId = Guid.NewGuid().ToString(),
-        refunds   = new[] { new { orderId, sessionId = body.SessionId, amount = body.Amount, description = body.Description } },
+        refunds = new[] { new { orderId, sessionId = body.SessionId, amount = body.Amount, description = body.Description } },
     };
     var response = await http.PostAsJsonAsync("/api/v1/transaction/refund", payload);
     var raw = await response.Content.ReadAsStringAsync();
@@ -183,28 +185,28 @@ app.MapPost("/api/notify", (
     var options = new Przelewy24Options
     {
         MerchantId = section.GetValue<int>("MerchantId"),
-        PosId      = section.GetValue<int>("PosId"),
-        ApiKey     = section.GetValue<string>("ApiKey") ?? "",
-        CrcKey     = section.GetValue<string>("CrcKey") ?? "",
-        Sandbox    = section.GetValue<bool>("Sandbox"),
+        PosId = section.GetValue<int>("PosId"),
+        ApiKey = section.GetValue<string>("ApiKey") ?? "",
+        CrcKey = section.GetValue<string>("CrcKey") ?? "",
+        Sandbox = section.GetValue<bool>("Sandbox"),
     };
 
     var provider = new Przelewy24Provider(options, new HttpClient());
 
     var notification = new PaymentNotification
     {
-        SessionId  = payload.SessionId,
+        SessionId = payload.SessionId,
         ProviderId = payload.OrderId.ToString(),
-        Amount     = payload.Amount,
-        Currency   = payload.Currency,
-        Sign       = payload.Sign,
-        RawFields  = new Dictionary<string, string>
+        Amount = payload.Amount,
+        Currency = payload.Currency,
+        Sign = payload.Sign,
+        RawFields = new Dictionary<string, string>
         {
-            ["merchantId"]   = payload.MerchantId.ToString(),
-            ["posId"]        = payload.PosId.ToString(),
+            ["merchantId"] = payload.MerchantId.ToString(),
+            ["posId"] = payload.PosId.ToString(),
             ["originAmount"] = payload.OriginAmount.ToString(),
-            ["methodId"]     = payload.MethodId.ToString(),
-            ["statement"]    = payload.Statement ?? "",
+            ["methodId"] = payload.MethodId.ToString(),
+            ["statement"] = payload.Statement ?? "",
         },
     };
 
@@ -226,19 +228,19 @@ app.Run();
 // ---------------------------------------------------------------------------
 // Supporting types
 // ---------------------------------------------------------------------------
-record P24IpnPayload(
-    int    MerchantId,
-    int    PosId,
+internal record P24IpnPayload(
+    int MerchantId,
+    int PosId,
     string SessionId,
-    int    Amount,
-    int    OriginAmount,
+    int Amount,
+    int OriginAmount,
     string Currency,
-    int    OrderId,
-    int    MethodId,
+    int OrderId,
+    int MethodId,
     string Statement,
     string Sign);
 
-class NotificationStore
+internal class NotificationStore
 {
     private readonly List<ReceivedNotification> _items = [];
     private readonly Lock _lock = new();
@@ -247,33 +249,39 @@ class NotificationStore
     {
         var entry = new ReceivedNotification(
             ReceivedAt: DateTime.UtcNow,
-            SessionId:  payload.SessionId,
-            OrderId:    payload.OrderId,
-            Amount:     payload.Amount,
-            Currency:   payload.Currency,
-            MethodId:   payload.MethodId,
-            Sign:       payload.Sign,
-            Valid:      valid);
+            SessionId: payload.SessionId,
+            OrderId: payload.OrderId,
+            Amount: payload.Amount,
+            Currency: payload.Currency,
+            MethodId: payload.MethodId,
+            Sign: payload.Sign,
+            Valid: valid);
 
         lock (_lock)
         {
             _items.Insert(0, entry);
-            if (_items.Count > 50) _items.RemoveAt(_items.Count - 1);
+            if (_items.Count > 50)
+            {
+                _items.RemoveAt(_items.Count - 1);
+            }
         }
     }
 
     public IReadOnlyList<ReceivedNotification> GetAll()
     {
-        lock (_lock) return [.. _items];
+        lock (_lock)
+        {
+            return [.. _items];
+        }
     }
 }
 
-record ReceivedNotification(
+internal record ReceivedNotification(
     DateTime ReceivedAt,
-    string   SessionId,
-    int      OrderId,
-    int      Amount,
-    string   Currency,
-    int      MethodId,
-    string   Sign,
-    bool     Valid);
+    string SessionId,
+    int OrderId,
+    int Amount,
+    string Currency,
+    int MethodId,
+    string Sign,
+    bool Valid);

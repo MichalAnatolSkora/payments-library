@@ -1,3 +1,7 @@
+using Payment.Models.Requests;
+using Payment.Models.Results;
+using PaymentsLibrary.Models;
+
 namespace PaymentsLibrary.Abstractions;
 
 /// <summary>
@@ -27,7 +31,7 @@ public interface IPaymentProvider
 
     /// <summary>
     /// Confirms / settles a payment after a validated IPN notification.
-    /// Providers that do not require an explicit confirm step should
+    /// Providers that do not require an explicit confirmation step should
     /// return <see cref="ConfirmPaymentResult.Ok"/> immediately.
     /// </summary>
     Task<ConfirmPaymentResult> ConfirmPaymentAsync(

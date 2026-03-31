@@ -23,4 +23,8 @@
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.5" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Payment.Models\Payment.Models.csproj" />
+  </ItemGroup>
+
 </Project>

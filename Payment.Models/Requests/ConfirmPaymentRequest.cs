@@ -1,4 +1,4 @@
-namespace PaymentsLibrary.Abstractions;
+namespace Payment.Models.Requests;
 
 /// <summary>
 /// Sent to the provider to confirm/settle a payment after a validated IPN notification.
