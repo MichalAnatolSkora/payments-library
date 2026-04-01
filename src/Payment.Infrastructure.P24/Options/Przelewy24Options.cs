@@ -20,4 +20,15 @@ public sealed class Przelewy24Options
     public required string CrcKey { get; init; }
 
     public bool Sandbox { get; init; } = false;
+
+    public Uri BaseAddress
+    {
+        get
+        {
+            var uri = Sandbox
+                ? "https://sandbox.przelewy24.pl"
+                : "https://secure.przelewy24.pl";
+            return new Uri(uri);
+        }
+    }
 }

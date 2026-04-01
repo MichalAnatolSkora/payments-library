@@ -19,21 +19,18 @@ namespace Payment.Infrastructure.P24.Providers.Przelewy24;
 public sealed class Przelewy24Provider : IPaymentProvider
 {
     private readonly Przelewy24Options _options;
-    private readonly HttpClient _http;
+    private readonly HttpClient _httpClient;
 
-    public Przelewy24Provider(Przelewy24Options options, HttpClient httpClient)
+    public Przelewy24Provider(Przelewy24Options options, HttpClient httpClientClient)
     {
         _options = options;
-        _http = httpClient;
+        _httpClient = httpClientClient;
 
-        _http.BaseAddress ??= new Uri(options.Sandbox
-            ? "https://sandbox.przelewy24.pl"
-            : "https://secure.przelewy24.pl");
+        _httpClient.BaseAddress ??= options.BaseAddress;
 
         var credentials = Convert.ToBase64String(
             Encoding.ASCII.GetBytes($"{_options.PosId}:{_options.ApiKey}"));
-        _http.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Basic", credentials);
+        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", credentials);
     }
 
     // -------------------------------------------------------------------------
@@ -64,7 +61,7 @@ public sealed class Przelewy24Provider : IPaymentProvider
             Sign = sign,
         };
 
-        var response = await _http.PostAsJsonAsync("/api/v1/transaction/register", body, cancellationToken);
+        var response = await _httpClient.PostAsJsonAsync("/api/v1/transaction/register", body, cancellationToken);
         var result = await ReadJsonOrNull<P24ApiResponse<RegisterTransactionData>>(response, cancellationToken);
 
         if (result?.Data is null)
@@ -72,10 +69,7 @@ public sealed class Przelewy24Provider : IPaymentProvider
             return CreatePaymentResult.Fail(result?.Error ?? "unknown", result?.ErrorMessage ?? "Registration failed.");
         }
 
-        var baseUrl = _options.Sandbox
-            ? "https://sandbox.przelewy24.pl"
-            : "https://secure.przelewy24.pl";
-        var redirectUrl = $"{baseUrl}/trnRequest/{result.Data.Token}";
+        var redirectUrl = $"{_options.BaseAddress.OriginalString}/trnRequest/{result.Data.Token}";
         return CreatePaymentResult.Ok(redirectUrl, result.Data.Token);
     }
 
@@ -83,7 +77,7 @@ public sealed class Przelewy24Provider : IPaymentProvider
         string sessionId,
         CancellationToken cancellationToken = default)
     {
-        var response = await _http.GetAsync(
+        var response = await _httpClient.GetAsync(
             $"/api/v1/transaction/by/sessionId/{Uri.EscapeDataString(sessionId)}", cancellationToken);
 
         var result = await ReadJsonOrNull<P24ApiResponse<TransactionStatusData>>(response, cancellationToken);
@@ -176,7 +170,7 @@ public sealed class Przelewy24Provider : IPaymentProvider
             Sign = sign,
         };
 
-        var response = await _http.PutAsJsonAsync("/api/v1/transaction/verify", body, cancellationToken);
+        var response = await _httpClient.PutAsJsonAsync("/api/v1/transaction/verify", body, cancellationToken);
         var result = await ReadJsonOrNull<P24ApiResponse<JsonElement>>(response, cancellationToken);
 
         return result?.Error is null
@@ -224,7 +218,7 @@ public sealed class Przelewy24Provider : IPaymentProvider
             Sign = sign,
         };
 
-        var response = await _http.PostAsJsonAsync("/api/v1/transaction/refund", body, cancellationToken);
+        var response = await _httpClient.PostAsJsonAsync("/api/v1/transaction/refund", body, cancellationToken);
         var result = await ReadJsonOrNull<P24ApiResponse<JsonElement>>(response, cancellationToken);
 
         return result?.Error is null
