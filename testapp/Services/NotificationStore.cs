@@ -46,6 +46,9 @@ public class NotificationStore
     }
 }
 
+/// <summary>
+/// Instant payment notification payload
+/// </summary>
 public record P24IpnPayload(
     int MerchantId,
     int PosId,

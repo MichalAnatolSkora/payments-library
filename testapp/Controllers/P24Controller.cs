@@ -13,11 +13,13 @@ public class P24Controller : ControllerBase
 {
     private readonly IConfiguration _configuration;
     private readonly NotificationStore _store;
+    private readonly ILogger<P24Controller> _logger;
 
-    public P24Controller(IConfiguration configuration, NotificationStore store)
+    public P24Controller(IConfiguration configuration, NotificationStore store, ILogger<P24Controller> logger)
     {
         _configuration = configuration;
         _store = store;
+        _logger = logger;
     }
 
     [HttpGet("config")]
@@ -109,6 +111,8 @@ public class P24Controller : ControllerBase
     [HttpPost("notify")]
     public IActionResult Notify([FromBody] P24IpnPayload payload)
     {
+        _logger.LogInformation("Received P24 notification for SessionId: {SessionId}", payload.SessionId);
+
         var section = _configuration.GetSection("Przelewy24");
         var options = new Przelewy24Options
         {
@@ -139,6 +143,8 @@ public class P24Controller : ControllerBase
         };
 
         var valid = provider.ValidateNotification(notification);
+        _logger.LogInformation("P24 notification validation result: {Valid} (SessionId: {SessionId})", valid, payload.SessionId);
+
         _store.Add(payload, valid);
 
         return Ok();
