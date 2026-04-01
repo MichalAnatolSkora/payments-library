@@ -14,6 +14,13 @@ public sealed class ConfirmPaymentRequest
     /// </summary>
     public required string ProviderId { get; init; }
 
+    /// <summary>
+    /// Transaction amount expressed in the lowest currency unit, e.g. 1.23 PLN = 123
+    /// </summary>
     public required int Amount { get; init; }
+
+    /// <summary>
+    /// Currency compatible with ISO, e.g. PLN
+    /// </summary>
     public required string Currency { get; init; }
 }

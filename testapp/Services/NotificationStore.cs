@@ -5,7 +5,7 @@ namespace PaymentsLibrary.TestApp.Services;
 public record ReceivedNotification(
     DateTime ReceivedAt,
     string SessionId,
-    int OrderId,
+    long OrderId,
     int Amount,
     string Currency,
     int MethodId,
