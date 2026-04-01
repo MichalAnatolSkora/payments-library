@@ -133,7 +133,7 @@ public class P24Controller : ControllerBase
                 ["posId"] = payload.PosId.ToString(),
                 ["originAmount"] = payload.OriginAmount.ToString(),
                 ["methodId"] = payload.MethodId.ToString(),
-                ["statement"] = payload.Statement ?? "",
+                ["statement"] = payload.Statement ?? string.Empty,
             },
         };
 

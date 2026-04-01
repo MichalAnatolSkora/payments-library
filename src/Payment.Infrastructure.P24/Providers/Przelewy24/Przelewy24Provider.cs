@@ -1,11 +1,11 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Payment.Infrastructure.P24.Abstractions;
 using Payment.Infrastructure.P24.Models;
 using Payment.Infrastructure.P24.Providers.Przelewy24.Models;
+using Payment.Infrastructure.P24.Security;
 using Payment.Models.Requests;
 using Payment.Models.Results;
 
@@ -43,7 +43,8 @@ public sealed class Przelewy24Provider : IPaymentProvider
         CreatePaymentRequest request,
         CancellationToken cancellationToken = default)
     {
-        var sign = ComputeRegisterSign(request.SessionId, request.Amount, request.Currency);
+        var sign = CryptographyProvider.ComputeRegisterSign(
+            _options.MerchantId, _options.CrcKey, request.SessionId, request.Amount, request.Currency);
 
         var body = new RegisterTransactionRequest
         {
@@ -107,7 +108,6 @@ public sealed class Przelewy24Provider : IPaymentProvider
             State = MapState(data.Status),
             MethodId = data.MethodId?.ToString(),
         };
-
     }
 
     public bool ValidateNotification(PaymentNotification notification)
@@ -137,9 +137,17 @@ public sealed class Przelewy24Provider : IPaymentProvider
         var statement = notification.RawFields.TryGetValue("statement", out var stmt)
             ? stmt : string.Empty;
 
-        var expected = ComputeWebhookSign(
-            merchantId, posId, notification.SessionId, notification.Amount, originAmount,
-            notification.Currency, orderId, methodId, statement);
+        var expected = CryptographyProvider.ComputeWebhookSign(
+            merchantId,
+            _options.CrcKey,
+            posId,
+            notification.SessionId,
+            notification.Amount,
+            originAmount,
+            notification.Currency,
+            orderId,
+            methodId,
+            statement);
 
         return string.Equals(expected, notification.Sign, StringComparison.OrdinalIgnoreCase);
     }
@@ -153,7 +161,8 @@ public sealed class Przelewy24Provider : IPaymentProvider
             return ConfirmPaymentResult.Fail("invalid_provider_id", "ProviderId must be a numeric P24 orderId.");
         }
 
-        var sign = ComputeNotifySign(request.SessionId, orderId, request.Amount, request.Currency);
+        var sign = CryptographyProvider.ComputeNotifySign(
+            _options.CrcKey, request.SessionId, orderId, request.Amount, request.Currency);
 
         var body = new VerifyTransactionRequest
         {
@@ -188,25 +197,26 @@ public sealed class Przelewy24Provider : IPaymentProvider
             return RefundResult.Fail("amount_required", "P24 refunds require an explicit Amount.");
         }
 
-        var currency    = request.Currency ?? "PLN";
-        var requestId   = Guid.NewGuid().ToString();
+        var currency = request.Currency ?? "PLN";
+        var requestId = Guid.NewGuid().ToString();
         var refundsUuid = Guid.NewGuid().ToString();
-        var sign        = ComputeRefundSign(refundsUuid, request.Amount.Value, currency);
+        var sign = CryptographyProvider.ComputeRefundSign(
+            _options.MerchantId, _options.CrcKey, refundsUuid, request.Amount.Value, currency);
 
         var body = new RefundTransactionRequest
         {
-            MerchantId  = _options.MerchantId,
-            PosId       = _options.PosId,
-            RequestId   = requestId,
+            MerchantId = _options.MerchantId,
+            PosId = _options.PosId,
+            RequestId = requestId,
             RefundsUuid = refundsUuid,
             Refunds =
             [
                 new RefundItem
                 {
-                    OrderId     = orderId,
-                    SessionId   = request.SessionId,
-                    Amount      = request.Amount.Value,
-                    Currency    = currency,
+                    OrderId = orderId,
+                    SessionId = request.SessionId,
+                    Amount = request.Amount.Value,
+                    Currency = currency,
                     Description = request.Description,
                 }
             ],
@@ -219,79 +229,6 @@ public sealed class Przelewy24Provider : IPaymentProvider
         return result?.Error is null
             ? RefundResult.Ok()
             : RefundResult.Fail(result.Error, result.ErrorMessage ?? "Refund failed.");
-    }
-
-    // -------------------------------------------------------------------------
-    // Signing helpers
-    // -------------------------------------------------------------------------
-
-    /// <summary>SHA-384 sign for /transaction/register.</summary>
-    private string ComputeRegisterSign(string sessionId, int amount, string currency)
-    {
-        var payload = JsonSerializer.Serialize(new
-        {
-            sessionId,
-            merchantId = _options.MerchantId,
-            amount,
-            currency,
-            crc = _options.CrcKey,
-        });
-        return Sha384Hex(payload);
-    }
-
-    /// <summary>SHA-384 sign for IPN validation and /transaction/verify.</summary>
-    private string ComputeNotifySign(string sessionId, long orderId, int amount, string currency)
-    {
-        var payload = JsonSerializer.Serialize(new
-        {
-            sessionId,
-            orderId,
-            amount,
-            currency,
-            crc = _options.CrcKey,
-        });
-        return Sha384Hex(payload);
-    }
-
-    /// <summary>SHA-384 sign for /transaction/refund.</summary>
-    private string ComputeRefundSign(string refundsUuid, int amount, string currency)
-    {
-        var payload = JsonSerializer.Serialize(new
-        {
-            refundsUuid,
-            merchantId = _options.MerchantId,
-            amount,
-            currency,
-            crc = _options.CrcKey,
-        });
-        return Sha384Hex(payload);
-    }
-
-    /// <summary>SHA-384 sign specifically for inbound webhook/IPN validation.</summary>
-    private string ComputeWebhookSign(
-        int merchantId, int posId, string sessionId, int amount, int originAmount,
-        string currency, long orderId, int methodId, string statement)
-    {
-        var payload = JsonSerializer.Serialize(new
-        {
-            merchantId,
-            posId,
-            sessionId,
-            amount,
-            originAmount,
-            currency,
-            orderId,
-            methodId,
-            statement,
-            crc = _options.CrcKey,
-        });
-        return Sha384Hex(payload);
-    }
-
-    private static string Sha384Hex(string input)
-    {
-        var bytes = SHA384.HashData(Encoding.UTF8.GetBytes(input));
-        return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
     // -------------------------------------------------------------------------
