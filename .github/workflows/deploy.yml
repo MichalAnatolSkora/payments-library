@@ -5,8 +5,10 @@ on:
     branches: [ main ]
     paths:
       - 'src/**'
-      - 'src/testapp/**'
-      - '.github/workflows/deploy.yaml'
+      - 'testapp/**'
+      - '.github/workflows/deploy.yml'
+      - 'Directory.Packages.props'
+      - 'PaymentsLibrary.slnx'
   workflow_dispatch:
 
 jobs:
