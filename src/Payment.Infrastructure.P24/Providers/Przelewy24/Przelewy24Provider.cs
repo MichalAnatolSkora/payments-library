@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Payment.Infrastructure.P24.Abstractions;
 using Payment.Infrastructure.P24.Models;
+using Payment.Infrastructure.P24.Options;
 using Payment.Infrastructure.P24.Providers.Przelewy24.Models;
 using Payment.Infrastructure.P24.Security;
 using Payment.Models.Requests;
