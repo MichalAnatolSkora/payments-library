@@ -1,3 +1,5 @@
+using Payment.Models.Requests;
+
 namespace PaymentsLibrary.TestApp.Services;
 
 public record ReceivedNotification(
@@ -15,7 +17,7 @@ public class NotificationStore
     private readonly List<ReceivedNotification> _items = [];
     private readonly Lock _lock = new();
 
-    public void Add(P24IpnPayload payload, bool valid)
+    public void Add(InstantPaymentNotificationRequest payload, bool valid)
     {
         var entry = new ReceivedNotification(
             ReceivedAt: DateTime.UtcNow,
@@ -45,18 +47,3 @@ public class NotificationStore
         }
     }
 }
-
-/// <summary>
-/// Instant payment notification payload
-/// </summary>
-public record P24IpnPayload(
-    int MerchantId,
-    int PosId,
-    string SessionId,
-    int Amount,
-    int OriginAmount,
-    string Currency,
-    int OrderId,
-    int MethodId,
-    string Statement,
-    string Sign);

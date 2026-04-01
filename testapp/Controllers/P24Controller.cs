@@ -109,7 +109,7 @@ public class P24Controller : ControllerBase
     }
 
     [HttpPost("notify")]
-    public IActionResult Notify([FromBody] P24IpnPayload payload)
+    public IActionResult Notify([FromBody] InstantPaymentNotificationRequest payload)
     {
         _logger.LogInformation("Received P24 notification for SessionId: {SessionId}", payload.SessionId);
 

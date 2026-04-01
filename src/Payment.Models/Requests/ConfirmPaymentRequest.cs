@@ -9,7 +9,9 @@ public sealed class ConfirmPaymentRequest
 {
     public required string SessionId { get; init; }
 
-    /// <summary>Provider-side order ID received in the IPN notification.</summary>
+    /// <summary>
+    /// Provider-side order ID received in the IPN notification.
+    /// </summary>
     public required string ProviderId { get; init; }
 
     public required int Amount { get; init; }
