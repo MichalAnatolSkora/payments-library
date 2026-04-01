@@ -520,7 +520,7 @@ async function loadConfig() {
     if (c.ApiKey)     document.getElementById('cApiKey').value     = c.ApiKey;
     if (c.CrcKey)     document.getElementById('cCrcKey').value     = c.CrcKey;
     document.getElementById('cSandbox').checked = !!c.Sandbox;
-  } catch { /* no config file — user fills manually */ }
+  } catch { document.getElementById('cSandbox').checked = true }
 
   // pre-fill notify URL with our own endpoint
   document.getElementById('cp-notifyUrl').value =
