@@ -39,7 +39,7 @@ public sealed class InstantPaymentNotificationRequest
     public required string Currency { get; init; }
 
     [JsonPropertyName("orderId")]
-    public required int OrderId { get; init; }
+    public required long OrderId { get; init; }
 
     [JsonPropertyName("methodId")]
     public required int MethodId { get; init; }
