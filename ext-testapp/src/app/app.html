@@ -1,0 +1,15 @@
+<div class="wrapper">
+  @if (!isLoaded) {
+    <p class="loading">Ładowanie...</p>
+  } @else if (!isSignedIn) {
+    <clerk-sign-in />
+  } @else {
+    <div class="dashboard">
+      <header>
+        <h2>Witaj, {{ userName }}!</h2>
+        <clerk-user-button />
+      </header>
+      <p>Jesteś zalogowany.</p>
+    </div>
+  }
+</div>
