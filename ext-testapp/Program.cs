@@ -39,8 +39,19 @@ builder.Services.AddSwaggerExamplesFromAssemblyOf<Program>();
 
 var app = builder.Build();
 
-app.UseSwagger();
-app.UseSwaggerUI();
+// 3. Swagger only in development
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+// 4. HTTPS enforcement
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+app.UseHttpsRedirection();
 
 var spaPath = Path.Combine(app.Environment.ContentRootPath, "wwwroot", "browser");
 
@@ -66,66 +77,74 @@ app.MapGet("/api/me", (HttpContext ctx) =>
     return Results.Ok(new { userId });
 }).RequireAuthorization();
 
+// 2. Config without secrets — only safe values
 app.MapGet("/api/config", (Przelewy24Options options) =>
 {
     return Results.Ok(new
     {
         options.MerchantId,
         options.PosId,
-        options.ApiKey,
-        options.CrcKey,
         options.Sandbox,
     });
-});
+}).RequireAuthorization();
 
 app.MapPost("/api/create-payment", async (CreatePaymentRequest body, IPaymentProvider provider) =>
 {
     return Results.Ok(await provider.CreatePaymentAsync(body));
-});
-
-app.MapPost("/api/create-payment-raw", async (CreatePaymentRequest body, Przelewy24Options options) =>
-{
-    var (provider, handler) = ProviderWithCapture(options);
-    await provider.CreatePaymentAsync(body);
-    return Results.Ok(handler.Capture());
-});
+}).RequireAuthorization();
 
 app.MapGet("/api/payment-status/{sessionId}", async (string sessionId, IPaymentProvider provider) =>
 {
     return Results.Ok(await provider.GetPaymentStatusAsync(sessionId));
-});
-
-app.MapGet("/api/payment-status-raw/{sessionId}", async (string sessionId, Przelewy24Options options) =>
-{
-    var (provider, handler) = ProviderWithCapture(options);
-    await provider.GetPaymentStatusAsync(sessionId);
-    return Results.Ok(handler.Capture());
-});
+}).RequireAuthorization();
 
 app.MapPost("/api/confirm-payment", async (ConfirmPaymentRequest body, IPaymentProvider provider) =>
 {
     return Results.Ok(await provider.ConfirmPaymentAsync(body));
-});
-
-app.MapPost("/api/confirm-payment-raw", async (ConfirmPaymentRequest body, Przelewy24Options options) =>
-{
-    var (provider, handler) = ProviderWithCapture(options);
-    await provider.ConfirmPaymentAsync(body);
-    return Results.Ok(handler.Capture());
-});
+}).RequireAuthorization();
 
 app.MapPost("/api/refund", async (RefundRequest body, IPaymentProvider provider) =>
 {
     return Results.Ok(await provider.RefundAsync(body));
-});
+}).RequireAuthorization();
 
-app.MapPost("/api/refund-raw", async (RefundRequest body, Przelewy24Options options) =>
+app.MapGet("/api/notifications", (NotificationStore store) =>
+    Results.Ok(store.GetAll())
+).RequireAuthorization();
+
+// 3. Raw capture endpoints — development only
+if (app.Environment.IsDevelopment())
 {
-    var (provider, handler) = ProviderWithCapture(options);
-    await provider.RefundAsync(body);
-    return Results.Ok(handler.Capture());
-});
+    app.MapPost("/api/create-payment-raw", async (CreatePaymentRequest body, Przelewy24Options options) =>
+    {
+        var (provider, handler) = ProviderWithCapture(options);
+        await provider.CreatePaymentAsync(body);
+        return Results.Ok(handler.Capture());
+    }).RequireAuthorization();
 
+    app.MapGet("/api/payment-status-raw/{sessionId}", async (string sessionId, Przelewy24Options options) =>
+    {
+        var (provider, handler) = ProviderWithCapture(options);
+        await provider.GetPaymentStatusAsync(sessionId);
+        return Results.Ok(handler.Capture());
+    }).RequireAuthorization();
+
+    app.MapPost("/api/confirm-payment-raw", async (ConfirmPaymentRequest body, Przelewy24Options options) =>
+    {
+        var (provider, handler) = ProviderWithCapture(options);
+        await provider.ConfirmPaymentAsync(body);
+        return Results.Ok(handler.Capture());
+    }).RequireAuthorization();
+
+    app.MapPost("/api/refund-raw", async (RefundRequest body, Przelewy24Options options) =>
+    {
+        var (provider, handler) = ProviderWithCapture(options);
+        await provider.RefundAsync(body);
+        return Results.Ok(handler.Capture());
+    }).RequireAuthorization();
+}
+
+// /api/notify — must stay open for P24 to send IPN
 app.MapPost("/api/notify", async (HttpContext ctx, IPaymentProvider provider, NotificationStore store, ILogger<Program> logger) =>
 {
     // P24 REST API sends JSON, legacy API sends form-urlencoded — handle both
@@ -179,8 +198,6 @@ app.MapPost("/api/notify", async (HttpContext ctx, IPaymentProvider provider, No
 
     return Results.Ok();
 }).DisableAntiforgery();
-
-app.MapGet("/api/notifications", (NotificationStore store) => Results.Ok(store.GetAll()));
 
 app.MapFallback(async context =>
 {

@@ -5,8 +5,6 @@ import { firstValueFrom } from 'rxjs';
 export interface P24Config {
   merchantId: number;
   posId: number;
-  apiKey: string;
-  crcKey: string;
   sandbox: boolean;
 }
 
@@ -15,8 +13,6 @@ export class ApiService {
   private config: P24Config = {
     merchantId: 0,
     posId: 0,
-    apiKey: '',
-    crcKey: '',
     sandbox: true,
   };
 
@@ -31,8 +27,6 @@ export class ApiService {
     this.config = {
       merchantId: data.merchantId ?? 0,
       posId: data.posId ?? 0,
-      apiKey: data.apiKey ?? '',
-      crcKey: data.crcKey ?? '',
       sandbox: data.sandbox ?? true,
     };
     return this.config;
