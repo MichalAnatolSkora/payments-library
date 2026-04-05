@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <NoWarn>1701;1702;1591</NoWarn>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Clerk.Net.AspNetCore.Security" />
+    <PackageReference Include="Swashbuckle.AspNetCore" />
+    <PackageReference Include="Swashbuckle.AspNetCore.Filters" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\src\Payment.Infrastructure.P24\Payment.Infrastructure.P24.csproj" />
+    <ProjectReference Include="..\src\Payment.Models\Payment.Models.csproj" />
+  </ItemGroup>
+
+</Project>
