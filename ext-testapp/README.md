@@ -1,59 +1,121 @@
-# ExtTestapp
+# ExtTestApp
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.2.6.
+Angular + ASP.NET Core app for manually testing the payments library against P24 sandbox. Uses Clerk for authentication.
 
-## Development server
+## Prerequisites
 
-To start a local development server, run:
+- .NET 10 SDK
+- Node.js 20+
+- Clerk account (for auth)
+- P24 sandbox credentials
 
-```bash
-ng serve
+## Setup
+
+1. Create `appsettings.Local.json` (gitignored):
+
+```json
+{
+  "Clerk": {
+    "Authority": "https://<your-instance>.clerk.accounts.dev",
+    "AuthorizedParty": "http://localhost:5201",
+    "SecretKey": "sk_test_..."
+  },
+  "Przelewy24": {
+    "MerchantId": 390264,
+    "PosId": 390264,
+    "ApiKey": "...",
+    "CrcKey": "...",
+    "Sandbox": true
+  }
+}
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+2. Create `src/environments/environment.ts` (gitignored):
 
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
+```typescript
+export const environment = {
+  production: false,
+  clerkPublishableKey: 'pk_test_...',
+};
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+3. Build and run:
 
 ```bash
-ng generate --help
+npx ng build
+dotnet run
+# open http://localhost:5201
 ```
 
-## Building
+## Dashboard tabs
 
-To build the project run:
+### Config
+
+Displays P24 credentials loaded from the server (`appsettings.Local.json`). Read-only.
+
+### Create Payment
+
+Registers a transaction via `IPaymentProvider.CreatePaymentAsync`. Returns a redirect URL — click it to open the P24 sandbox payment page. The `sessionId` is automatically propagated to other tabs.
+
+### Payment Status
+
+Checks the current state of a payment by session ID via `IPaymentProvider.GetPaymentStatusAsync`. Includes a legend mapping `PaymentState` enum values to P24 status codes.
+
+### Confirm Payment
+
+Confirms/settles a payment via `IPaymentProvider.ConfirmPaymentAsync`. Typically called after receiving a valid IPN notification.
+
+### Refund
+
+Issues a full or partial refund via `IPaymentProvider.RefundAsync`.
+
+### Notifications
+
+Lists IPN notifications received by the server's `/api/notify` endpoint, with validation results.
+
+## IPN (Instant Payment Notification) flow
+
+P24 sends an IPN to your `notifyUrl` when a payment status changes. The full flow:
+
+1. **Create Payment** — set `notifyUrl` to a URL that P24 can reach (see below)
+2. **User pays** — click the redirect URL and complete the payment in P24 sandbox
+3. **P24 sends IPN** — POST to your `notifyUrl` with payment details and a SHA-384 signature
+4. **Server validates** — `/api/notify` receives the payload, validates the signature via `IPaymentProvider.ValidateNotification`, and stores the result
+5. **Check results** — open the **Notifications** tab to see received notifications and whether validation passed
+
+### Exposing localhost to P24
+
+P24 needs to reach your `notifyUrl` over the internet. Use a tunnel:
 
 ```bash
-ng build
+# ngrok
+ngrok http 5201
+
+# then set notifyUrl to e.g.:
+# https://abc123.ngrok-free.app/api/notify
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+Without a tunnel, P24 cannot deliver notifications to `http://localhost:5201/api/notify`.
 
-## Running unit tests
+## API endpoints
 
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/config` | GET | Returns P24 config (from appsettings) |
+| `/api/create-payment` | POST | Create payment via `IPaymentProvider` |
+| `/api/create-payment-raw` | POST | Same, but returns raw HTTP request/response |
+| `/api/payment-status/{sessionId}` | GET | Get payment status |
+| `/api/payment-status-raw/{sessionId}` | GET | Same, raw HTTP |
+| `/api/confirm-payment` | POST | Confirm payment |
+| `/api/confirm-payment-raw` | POST | Same, raw HTTP |
+| `/api/refund` | POST | Issue refund |
+| `/api/refund-raw` | POST | Same, raw HTTP |
+| `/api/notify` | POST | Receives P24 IPN webhooks |
+| `/api/notifications` | GET | List received notifications |
+| `/api/me` | GET | Current user (requires auth) |
 
-```bash
-ng test
-```
+Swagger UI available at `/swagger`.
 
-## Running end-to-end tests
+## Raw HTTP capture
 
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+Endpoints ending with `-raw` bypass DI and create a `Przelewy24Provider` with a `CapturingHandler` that records the full HTTP request and response. Toggle "Show raw HTTP" in the UI to use these endpoints instead of the standard ones.

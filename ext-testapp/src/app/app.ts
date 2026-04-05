@@ -6,10 +6,11 @@ import {
   ClerkUserButtonComponent,
 } from 'ngx-clerk';
 import { environment } from '../environments/environment';
+import { DashboardComponent } from './dashboard/dashboard.component';
 
 @Component({
   selector: 'app-root',
-  imports: [CommonModule, ClerkSignInComponent, ClerkUserButtonComponent],
+  imports: [CommonModule, ClerkSignInComponent, ClerkUserButtonComponent, DashboardComponent],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
