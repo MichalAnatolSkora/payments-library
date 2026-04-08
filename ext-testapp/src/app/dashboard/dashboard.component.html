@@ -1,0 +1,176 @@
+<div class="dashboard">
+  <nav class="tabs">
+    <button [class.active]="activeTab === 'config'" (click)="activeTab = 'config'">Config</button>
+    <button [class.active]="activeTab === 'create'" (click)="activeTab = 'create'">Create Payment</button>
+    <button [class.active]="activeTab === 'status'" (click)="activeTab = 'status'">Payment Status</button>
+    <button [class.active]="activeTab === 'confirm'" (click)="activeTab = 'confirm'">Confirm Payment</button>
+<button [class.active]="activeTab === 'refund'" (click)="activeTab = 'refund'">Refund</button>
+    <button [class.active]="activeTab === 'notifications'" (click)="activeTab = 'notifications'; doLoadNotifications()">Notifications</button>
+  </nav>
+
+  <!-- CONFIG -->
+  @if (activeTab === 'config') {
+    <section class="panel">
+      <h3>P24 Configuration</h3>
+      <p class="hint">Loaded from server (appsettings.Local.json). Uses IPaymentProvider via DI.</p>
+      <div class="config-grid">
+        <div class="config-item"><span class="config-label">Merchant ID</span><span class="config-value">{{ config.merchantId }}</span></div>
+        <div class="config-item"><span class="config-label">POS ID</span><span class="config-value">{{ config.posId }}</span></div>
+        <div class="config-item"><span class="config-label">Sandbox</span><span class="config-value">{{ config.sandbox ? 'Yes' : 'No' }}</span></div>
+      </div>
+    </section>
+  }
+
+  <!-- CREATE PAYMENT -->
+  @if (activeTab === 'create') {
+    <section class="panel">
+      <h3>Create Payment</h3>
+      <div class="form-grid">
+        <label>Session ID
+          <div class="input-group">
+            <input type="text" [(ngModel)]="createPayment.sessionId" name="sessionId" />
+            <button class="btn-small" (click)="createPayment.sessionId = generateSessionId()">Generate</button>
+          </div>
+        </label>
+        <label>Amount (grosze)<input type="number" [(ngModel)]="createPayment.amount" name="amount" /></label>
+        <label>Currency<input type="text" [(ngModel)]="createPayment.currency" name="currency" /></label>
+        <label>Description<input type="text" [(ngModel)]="createPayment.description" name="description" /></label>
+        <label>Customer Email<input type="email" [(ngModel)]="createPayment.customerEmail" name="email" /></label>
+        <label>Customer Name<input type="text" [(ngModel)]="createPayment.customerName" name="customerName" /></label>
+        <label>Return URL<input type="text" [(ngModel)]="createPayment.returnUrl" name="returnUrl" /></label>
+        <label>Notify URL<input type="text" [(ngModel)]="createPayment.notifyUrl" name="notifyUrl" /></label>
+        <label>Country<input type="text" [(ngModel)]="createPayment.country" name="country" /></label>
+        <label>Language<input type="text" [(ngModel)]="createPayment.language" name="language" /></label>
+      </div>
+      <div class="actions">
+        <label class="checkbox-row"><input type="checkbox" [(ngModel)]="showRaw" name="showRaw" /> Show raw HTTP</label>
+        <button class="btn" (click)="doCreatePayment()" [disabled]="loading">
+          {{ loading ? 'Creating...' : 'Create Payment' }}
+        </button>
+      </div>
+    </section>
+  }
+
+  <!-- PAYMENT STATUS -->
+  @if (activeTab === 'status') {
+    <section class="panel">
+      <h3>Payment Status</h3>
+      <div class="form-grid">
+        <label>Session ID<input type="text" [(ngModel)]="statusSessionId" name="statusSessionId" /></label>
+      </div>
+      <div class="actions">
+        <label class="checkbox-row"><input type="checkbox" [(ngModel)]="showRaw" name="showRaw" /> Show raw HTTP</label>
+        <button class="btn" (click)="doGetStatus()" [disabled]="loading">
+          {{ loading ? 'Checking...' : 'Get Status' }}
+        </button>
+      </div>
+      <div class="legend">
+        <h4>PaymentState (enum value → P24 status code)</h4>
+        <div class="legend-grid">
+          <span class="legend-item"><span class="dot dot-unknown"></span><b>0</b> Unknown <span class="p24-code">P24: default</span></span>
+          <span class="legend-item"><span class="dot dot-pending"></span><b>1</b> Pending <span class="p24-code">P24: 1</span></span>
+          <span class="legend-item"><span class="dot dot-processing"></span><b>2</b> Processing</span>
+          <span class="legend-item"><span class="dot dot-completed"></span><b>3</b> Completed <span class="p24-code">P24: 2</span></span>
+          <span class="legend-item"><span class="dot dot-cancelled"></span><b>4</b> Cancelled <span class="p24-code">P24: 3</span></span>
+          <span class="legend-item"><span class="dot dot-expired"></span><b>5</b> Expired</span>
+          <span class="legend-item"><span class="dot dot-refunded"></span><b>6</b> Refunded <span class="p24-code">P24: 4</span></span>
+          <span class="legend-item"><span class="dot dot-partial"></span><b>7</b> PartialRefunded</span>
+          <span class="legend-item"><span class="dot dot-failed"></span><b>8</b> Failed <span class="p24-code">P24: 5</span></span>
+        </div>
+      </div>
+    </section>
+  }
+
+  <!-- CONFIRM PAYMENT -->
+  @if (activeTab === 'confirm') {
+    <section class="panel">
+      <h3>Confirm Payment</h3>
+      <div class="form-grid">
+        <label>Session ID<input type="text" [(ngModel)]="confirmPayment.sessionId" name="cSessionId" /></label>
+        <label>Provider ID (Order ID)<input type="text" [(ngModel)]="confirmPayment.providerId" name="cProviderId" /></label>
+        <label>Amount (grosze)<input type="number" [(ngModel)]="confirmPayment.amount" name="cAmount" /></label>
+        <label>Currency<input type="text" [(ngModel)]="confirmPayment.currency" name="cCurrency" /></label>
+      </div>
+      <div class="actions">
+        <label class="checkbox-row"><input type="checkbox" [(ngModel)]="showRaw" name="showRaw" /> Show raw HTTP</label>
+        <button class="btn" (click)="doConfirmPayment()" [disabled]="loading">
+          {{ loading ? 'Confirming...' : 'Confirm Payment' }}
+        </button>
+      </div>
+    </section>
+  }
+
+  <!-- REFUND -->
+  @if (activeTab === 'refund') {
+    <section class="panel">
+      <h3>Refund</h3>
+      <div class="form-grid">
+        <label>Session ID<input type="text" [(ngModel)]="refund.sessionId" name="rSessionId" /></label>
+        <label>Provider ID (Order ID)<input type="text" [(ngModel)]="refund.providerId" name="rProviderId" /></label>
+        <label>Amount (grosze)<input type="number" [(ngModel)]="refund.amount" name="rAmount" /></label>
+        <label>Currency<input type="text" [(ngModel)]="refund.currency" name="rCurrency" /></label>
+        <label>Description<input type="text" [(ngModel)]="refund.description" name="rDescription" /></label>
+      </div>
+      <div class="actions">
+        <label class="checkbox-row"><input type="checkbox" [(ngModel)]="showRaw" name="showRaw" /> Show raw HTTP</label>
+        <button class="btn" (click)="doRefund()" [disabled]="loading">
+          {{ loading ? 'Refunding...' : 'Refund' }}
+        </button>
+      </div>
+    </section>
+  }
+
+  <!-- NOTIFICATIONS -->
+  @if (activeTab === 'notifications') {
+    <section class="panel">
+      <h3>Received Notifications</h3>
+      <button class="btn" (click)="doLoadNotifications()" [disabled]="loading">Refresh</button>
+      @if (notifications.length === 0) {
+        <p class="hint">No notifications received yet.</p>
+      } @else {
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Session ID</th>
+                <th>Order ID</th>
+                <th>Amount</th>
+                <th>Currency</th>
+                <th>Valid</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (n of notifications; track n.sessionId + n.receivedAt) {
+                <tr [class.invalid]="!n.valid">
+                  <td>{{ n.receivedAt }}</td>
+                  <td>{{ n.sessionId }}</td>
+                  <td>{{ n.orderId }}</td>
+                  <td>{{ n.amount }}</td>
+                  <td>{{ n.currency }}</td>
+                  <td>{{ n.valid ? 'Yes' : 'No' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  }
+
+  <!-- RESULT -->
+  @if (result) {
+    <section class="result">
+      <div class="result-header">
+        <h4>Result</h4>
+        <button class="btn-small" (click)="result = null">Clear</button>
+      </div>
+      @if (result.redirectUrl) {
+        <div class="redirect-link">
+          <a [href]="result.redirectUrl" target="_blank">{{ result.redirectUrl }}</a>
+        </div>
+      }
+      <pre>{{ result | json }}</pre>
+    </section>
+  }
+</div>

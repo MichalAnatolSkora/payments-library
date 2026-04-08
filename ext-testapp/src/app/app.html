@@ -1,0 +1,18 @@
+<div class="wrapper">
+  @if (!isSignedIn) {
+    <div class="login-center">
+      <clerk-sign-in />
+    </div>
+  } @else {
+    <div class="app-shell">
+      <header class="topbar">
+        <h1>ExtTestApp <span class="badge">P24</span></h1>
+        <div class="topbar-right">
+          <span class="user-name">{{ userName }}</span>
+          <clerk-user-button />
+        </div>
+      </header>
+      <app-dashboard />
+    </div>
+  }
+</div>
