@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/Sample/">
+    <Project Path="testapp/Payment.Sample.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Payment.Tests.csproj" />
+  </Folder>
+  <Project Path="src/Payment.Core.P24/Payment.Core.P24.csproj" />
+  <Project Path="src/Payment.Models/Payment.Models.csproj" />
+</Solution>

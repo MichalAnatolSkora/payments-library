@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 using Payment.Core.P24.Options;
-using PaymentsLibrary.TestApp.Services;
+using Payment.Sample.Api.Services;
 using Swashbuckle.AspNetCore.Filters;
 
 var builder = WebApplication.CreateBuilder(args);

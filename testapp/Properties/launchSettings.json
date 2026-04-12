@@ -1,11 +1,11 @@
 {
   "$schema": "https://json.schemastore.org/launchsettings.json",
   "profiles": {
-    "PaymentsLibrary.TestApp": {
+    "Payment.Sample.Api": {
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": true,
-      "applicationUrl": "https://localhost:7197;http://localhost:5155",
+      "applicationUrl": "https://localhost:7197",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }

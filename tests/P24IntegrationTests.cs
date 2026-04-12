@@ -5,19 +5,19 @@ using Payment.Core.P24.Providers.Przelewy24;
 using Payment.Models.Requests;
 using Xunit.Abstractions;
 
-namespace PaymentsLibrary.Tests;
+namespace Payment.Tests;
 
 /// <summary>
 /// Integration tests against the Przelewy24 sandbox.
 /// Requires appsettings.Development.json with valid sandbox credentials.
 /// </summary>
-public sealed class Przelewy24IntegrationTests : IDisposable
+public sealed class P24IntegrationTests : IDisposable
 {
     private readonly P24Provider _provider;
     private readonly HttpClient _httpClient = new();
     private readonly ITestOutputHelper _output;
 
-    public Przelewy24IntegrationTests(ITestOutputHelper output)
+    public P24IntegrationTests(ITestOutputHelper output)
     {
         _output = output;
 
@@ -25,8 +25,8 @@ public sealed class Przelewy24IntegrationTests : IDisposable
             .AddJsonFile("appsettings.Development.json", optional: false)
             .Build();
 
-        var options = config.GetSection("Przelewy24").Get<P24Options>()
-            ?? throw new InvalidOperationException("Missing Przelewy24 config.");
+        var options = config.GetSection("P24").Get<P24Options>()
+            ?? throw new InvalidOperationException("Missing P24 config.");
 
         _provider = new P24Provider(options, _httpClient);
     }
@@ -55,7 +55,7 @@ public sealed class Przelewy24IntegrationTests : IDisposable
         var result = await _provider.CreatePaymentAsync(new CreatePaymentRequest
         {
             SessionId = $"test-{Guid.NewGuid():N}",
-            Amount = 100,   // 1.00 PLN
+            Amount = 100, // 1.00 PLN
             Currency = "PLN",
             Description = "Integration test payment",
             CustomerEmail = "test@example.com",
@@ -83,7 +83,7 @@ public sealed class Przelewy24IntegrationTests : IDisposable
         {
             SessionId = $"test-{Guid.NewGuid():N}",
             Amount = 100,
-            Currency = "XYZ",   // unsupported currency
+            Currency = "XYZ", // Unsupported currency
             Description = "Should fail",
             CustomerEmail = "test@example.com",
             ReturnUrl = "https://example.com/return",
@@ -157,8 +157,8 @@ public sealed class Przelewy24IntegrationTests : IDisposable
         var config = new ConfigurationBuilder()
             .AddJsonFile("appsettings.Development.json", optional: false)
             .Build();
-        var merchantId = int.Parse(config["Przelewy24:MerchantId"]!);
-        var posId = int.Parse(config["Przelewy24:PosId"]!);
+        var merchantId = int.Parse(config["P24:MerchantId"]!);
+        var posId = int.Parse(config["P24:PosId"]!);
         var methodId = 154;
         var statement = "p24-123-abc";
 
@@ -214,7 +214,7 @@ public sealed class Przelewy24IntegrationTests : IDisposable
         var config = new ConfigurationBuilder()
             .AddJsonFile("appsettings.Development.json", optional: false)
             .Build();
-        var crc = config["Przelewy24:CrcKey"]!;
+        var crc = config["P24:CrcKey"]!;
 
         var payload = System.Text.Json.JsonSerializer.Serialize(new
         {

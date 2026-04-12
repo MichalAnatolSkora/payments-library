@@ -1,6 +1,6 @@
 using Payment.Models.Requests;
 
-namespace PaymentsLibrary.TestApp.Services;
+namespace Payment.Sample.Api.Services;
 
 public record ReceivedNotification(
     DateTime ReceivedAt,

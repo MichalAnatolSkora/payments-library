@@ -2,9 +2,9 @@ using Microsoft.AspNetCore.Mvc;
 using Payment.Core.P24.Abstractions;
 using Payment.Core.P24.Options;
 using Payment.Models.Requests;
-using PaymentsLibrary.TestApp.Services;
+using Payment.Sample.Api.Services;
 
-namespace PaymentsLibrary.TestApp.Controllers;
+namespace Payment.Sample.Api.Controllers;
 
 [ApiController]
 [Route("api")]
