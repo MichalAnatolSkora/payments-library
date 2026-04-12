@@ -214,15 +214,6 @@ button.secondary:hover { background: #1e1b4b; }
   <!-- SIDEBAR -->
   <aside>
     <div>
-      <div class="sidebar-section-title">Credentials</div>
-      <div class="field"><label>Merchant ID</label><input id="cMerchantId" type="number" value="390264" /></div>
-      <div class="field"><label>Pos ID</label><input id="cPosId" type="number" value="390264" /></div>
-      <div class="field"><label>API Key (raportów)</label><input id="cApiKey" type="text" placeholder="b0649ec..." /></div>
-      <div class="field"><label>CRC Key</label><input id="cCrcKey" type="text" placeholder="b666d2b..." /></div>
-      <div class="toggle-row"><input id="cSandbox" type="checkbox" checked /><label for="cSandbox">Sandbox</label></div>
-    </div>
-
-    <div>
       <div class="sidebar-section-title">Session context</div>
       <div class="field"><label>Session ID</label><input id="ctx-sessionId" type="text" readonly placeholder="set after step 1" style="opacity:.7" /></div>
       <div class="field"><label>Provider Order ID</label><input id="ctx-orderId" type="text" readonly placeholder="set after payment" style="opacity:.7" /></div>
@@ -562,20 +553,14 @@ function unlock(n) {
   document.getElementById('fstep-' + n)?.classList.remove('locked');
 }
 
-// ── credential headers ───────────────────────────────────
-function credHeaders() {
+function headers() {
   return {
     'Content-Type': 'application/json',
-    'X-MerchantId': document.getElementById('cMerchantId').value,
-    'X-PosId':      document.getElementById('cPosId').value,
-    'X-ApiKey':     document.getElementById('cApiKey').value,
-    'X-CrcKey':     document.getElementById('cCrcKey').value,
-    'X-Sandbox':    document.getElementById('cSandbox').checked ? 'true' : 'false',
   };
 }
 
 async function callApi(method, url, body) {
-  const opts = { method, headers: credHeaders() };
+    const opts = { method, headers: headers() };
   if (body !== undefined) opts.body = JSON.stringify(body);
   const res = await fetch(url, opts);
   const text = await res.text();

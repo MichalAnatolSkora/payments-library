@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using Payment.Core.P24.Abstractions;
-using Payment.Core.P24.Options;
 using Payment.Models.Requests;
 using Payment.Sample.Api.Services;
 
@@ -10,41 +9,24 @@ namespace Payment.Sample.Api.Controllers;
 [Route("api")]
 public class P24Controller : ControllerBase
 {
-    private readonly IConfiguration _configuration;
     private readonly NotificationStore _store;
     private readonly ILogger<P24Controller> _logger;
     private readonly IP24ProviderFactory _providerFactory;
 
     public P24Controller(
-        IConfiguration configuration,
+        IP24ProviderFactory providerFactory,
         NotificationStore store,
-        ILogger<P24Controller> logger,
-        IP24ProviderFactory providerFactory)
+        ILogger<P24Controller> logger)
     {
-        _configuration = configuration;
+        _providerFactory = providerFactory;
         _store = store;
         _logger = logger;
-        _providerFactory = providerFactory;
-    }
-
-    [HttpGet("config")]
-    public IActionResult GetConfig()
-    {
-        var section = _configuration.GetSection("P24");
-        return Ok(new
-        {
-            MerchantId = section.GetValue<int>("MerchantId"),
-            PosId = section.GetValue<int>("PosId"),
-            ApiKey = section.GetValue<string>("ApiKey") ?? string.Empty,
-            CrcKey = section.GetValue<string>("CrcKey") ?? string.Empty,
-            Sandbox = section.GetValue<bool>("IsSandbox"),
-        });
     }
 
     [HttpPost("create-payment")]
     public async Task<IActionResult> CreatePayment([FromBody] CreatePaymentRequest request)
     {
-        var provider = _providerFactory.Create(OptionsFromHeaders(Request));
+        var provider = _providerFactory.Create();
         var result = await provider.CreatePaymentAsync(request);
         return Ok(result);
     }
@@ -52,7 +34,7 @@ public class P24Controller : ControllerBase
     [HttpPost("create-payment-raw")]
     public async Task<IActionResult> CreatePaymentRaw([FromBody] CreatePaymentRequest request)
     {
-        var (provider, handler) = _providerFactory.CreateWithCapture(OptionsFromHeaders(Request));
+        var (provider, handler) = _providerFactory.CreateWithCapture();
         await provider.CreatePaymentAsync(request);
         return Ok(handler.Capture());
     }
@@ -60,7 +42,7 @@ public class P24Controller : ControllerBase
     [HttpGet("payment-status/{sessionId}")]
     public async Task<IActionResult> GetPaymentStatus(string sessionId)
     {
-        var provider = _providerFactory.Create(OptionsFromHeaders(Request));
+        var provider = _providerFactory.Create();
         var result = await provider.GetPaymentStatusAsync(sessionId);
         return Ok(result);
     }
@@ -68,7 +50,7 @@ public class P24Controller : ControllerBase
     [HttpGet("payment-status-raw/{sessionId}")]
     public async Task<IActionResult> GetPaymentStatusRaw(string sessionId)
     {
-        var (provider, handler) = _providerFactory.CreateWithCapture(OptionsFromHeaders(Request));
+        var (provider, handler) = _providerFactory.CreateWithCapture();
         await provider.GetPaymentStatusAsync(sessionId);
         return Ok(handler.Capture());
     }
@@ -76,7 +58,7 @@ public class P24Controller : ControllerBase
     [HttpPost("confirm-payment")]
     public async Task<IActionResult> ConfirmPayment([FromBody] ConfirmPaymentRequest request)
     {
-        var provider = _providerFactory.Create(OptionsFromHeaders(Request));
+        var provider = _providerFactory.Create();
         var result = await provider.ConfirmPaymentAsync(request);
         return Ok(result);
     }
@@ -84,7 +66,7 @@ public class P24Controller : ControllerBase
     [HttpPost("confirm-payment-raw")]
     public async Task<IActionResult> ConfirmPaymentRaw([FromBody] ConfirmPaymentRequest request)
     {
-        var (provider, handler) = _providerFactory.CreateWithCapture(OptionsFromHeaders(Request));
+        var (provider, handler) = _providerFactory.CreateWithCapture();
         await provider.ConfirmPaymentAsync(request);
         return Ok(handler.Capture());
     }
@@ -92,7 +74,7 @@ public class P24Controller : ControllerBase
     [HttpPost("validate-notification")]
     public IActionResult ValidateNotification([FromBody] PaymentNotification request)
     {
-        var provider = _providerFactory.Create(OptionsFromHeaders(Request));
+        var provider = _providerFactory.Create();
         var valid = provider.ValidateNotification(request);
         return Ok(new { valid });
     }
@@ -100,7 +82,7 @@ public class P24Controller : ControllerBase
     [HttpPost("refund")]
     public async Task<IActionResult> Refund([FromBody] RefundRequest request)
     {
-        var provider = _providerFactory.Create(OptionsFromHeaders(Request));
+        var provider = _providerFactory.Create();
         var result = await provider.RefundAsync(request);
         return Ok(result);
     }
@@ -108,7 +90,7 @@ public class P24Controller : ControllerBase
     [HttpPost("refund-raw")]
     public async Task<IActionResult> RefundRaw([FromBody] RefundRequest request)
     {
-        var (provider, handler) = _providerFactory.CreateWithCapture(OptionsFromHeaders(Request));
+        var (provider, handler) = _providerFactory.CreateWithCapture();
         await provider.RefundAsync(request);
         return Ok(handler.Capture());
     }
@@ -118,17 +100,7 @@ public class P24Controller : ControllerBase
     {
         _logger.LogInformation("Received P24 notification for SessionId: {SessionId}", payload.SessionId);
 
-        var section = _configuration.GetSection("P24");
-        var options = new P24Options
-        {
-            MerchantId = section.GetValue<int>("MerchantId"),
-            PosId = section.GetValue<int>("PosId"),
-            ApiKey = section.GetValue<string>("ApiKey") ?? string.Empty,
-            CrcKey = section.GetValue<string>("CrcKey") ?? string.Empty,
-            IsSandbox = section.GetValue<bool>("IsSandbox"),
-        };
-
-        var provider = _providerFactory.Create(options);
+        var provider = _providerFactory.Create();
 
         var notification = new PaymentNotification
         {
@@ -160,13 +132,4 @@ public class P24Controller : ControllerBase
     {
         return Ok(_store.GetAll());
     }
-
-    private static P24Options OptionsFromHeaders(HttpRequest httpRequest) => new()
-    {
-        MerchantId = int.Parse(httpRequest.Headers["X-MerchantId"].ToString()),
-        PosId = int.Parse(httpRequest.Headers["X-PosId"].ToString()),
-        ApiKey = httpRequest.Headers["X-ApiKey"].ToString(),
-        CrcKey = httpRequest.Headers["X-CrcKey"].ToString(),
-        IsSandbox = httpRequest.Headers["X-Sandbox"].ToString().ToLower() is "true" or "1",
-    };
 }

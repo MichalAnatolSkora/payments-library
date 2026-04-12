@@ -9,16 +9,15 @@ public static class P24ServiceCollectionExtensions
 {
     public static IServiceCollection AddP24(this IServiceCollection services, IConfiguration configuration)
     {
-        var options = configuration.GetSection("P24").Get<P24Options>()
+        var optionsSection = configuration.GetSection("P24")
             ?? throw new InvalidOperationException("Missing 'P24' configuration section.");
+        var options = optionsSection.Get<P24Options>();
+        services.Configure<P24Options>(optionsSection);
 
-        services.AddSingleton(options);
-
-        services.AddHttpClient();
         services.AddSingleton<IP24ProviderFactory, P24ProviderFactory>();
         services.AddHttpClient<IPaymentProvider, P24Provider>(client =>
         {
-            client.BaseAddress = new Uri(options.IsSandbox
+            client.BaseAddress = new Uri(options!.IsSandbox
                 ? "https://sandbox.przelewy24.pl"
                 : "https://secure.przelewy24.pl");
         });
