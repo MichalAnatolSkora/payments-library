@@ -37,7 +37,7 @@ public class P24Controller : ControllerBase
             PosId = section.GetValue<int>("PosId"),
             ApiKey = section.GetValue<string>("ApiKey") ?? string.Empty,
             CrcKey = section.GetValue<string>("CrcKey") ?? string.Empty,
-            Sandbox = section.GetValue<bool>("Sandbox"),
+            Sandbox = section.GetValue<bool>("IsSandbox"),
         });
     }
 
@@ -118,14 +118,14 @@ public class P24Controller : ControllerBase
     {
         _logger.LogInformation("Received P24 notification for SessionId: {SessionId}", payload.SessionId);
 
-        var section = _configuration.GetSection("Przelewy24");
+        var section = _configuration.GetSection("P24");
         var options = new P24Options
         {
             MerchantId = section.GetValue<int>("MerchantId"),
             PosId = section.GetValue<int>("PosId"),
             ApiKey = section.GetValue<string>("ApiKey") ?? string.Empty,
             CrcKey = section.GetValue<string>("CrcKey") ?? string.Empty,
-            IsSandbox = section.GetValue<bool>("Sandbox"),
+            IsSandbox = section.GetValue<bool>("IsSandbox"),
         };
 
         var provider = _providerFactory.Create(options);

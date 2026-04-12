@@ -68,7 +68,7 @@ public sealed class P24IntegrationTests : IDisposable
 
         Assert.True(result.Success, $"Expected success. Error: {result.ErrorCode} – {result.ErrorMessage}");
         Assert.NotNull(result.RedirectUrl);
-        Assert.Contains("sandbox.przelewy24.pl/trnRequest/", result.RedirectUrl);
+        Assert.Contains("https://sandbox.przelewy24.pl/trnRequest/", result.RedirectUrl);
         Assert.NotNull(result.PaymentToken);
 
         _output.WriteLine("=========================================================");
