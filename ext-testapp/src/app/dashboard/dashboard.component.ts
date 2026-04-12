@@ -15,7 +15,7 @@ export class DashboardComponent implements OnInit {
   loading = false;
   showRaw = false;
 
-  config: P24Config = { merchantId: 0, posId: 0, sandbox: true };
+  config: P24Config = { merchantId: 0, posId: 0, issandbox: true };
 
   createPayment = {
     sessionId: '',

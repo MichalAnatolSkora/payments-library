@@ -5,7 +5,7 @@ import { firstValueFrom } from 'rxjs';
 export interface P24Config {
   merchantId: number;
   posId: number;
-  sandbox: boolean;
+  issandbox: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -13,7 +13,7 @@ export class ApiService {
   private config: P24Config = {
     merchantId: 0,
     posId: 0,
-    sandbox: true,
+    issandbox: true,
   };
 
   constructor(private http: HttpClient) {}
@@ -27,7 +27,7 @@ export class ApiService {
     this.config = {
       merchantId: data.merchantId ?? 0,
       posId: data.posId ?? 0,
-      sandbox: data.sandbox ?? true,
+      issandbox: data.issandbox ?? true,
     };
     return this.config;
   }

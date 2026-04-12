@@ -63,7 +63,7 @@ app.UseAuthorization();
 
 // --- raw capture helper (debug only, bypasses DI) ---
 
-static (Przelewy24Provider provider, CapturingHandler handler) ProviderWithCapture(Przelewy24Options options)
+static (Przelewy24Provider provider, CapturingHandler handler) ProviderWithCapture(P24Options options)
 {
     var capturing = new CapturingHandler();
     return (new Przelewy24Provider(options, new HttpClient(capturing)), capturing);
@@ -78,13 +78,13 @@ app.MapGet("/api/me", (HttpContext ctx) =>
 }).RequireAuthorization();
 
 // 2. Config without secrets — only safe values
-app.MapGet("/api/config", (Przelewy24Options options) =>
+app.MapGet("/api/config", (P24Options options) =>
 {
     return Results.Ok(new
     {
         options.MerchantId,
         options.PosId,
-        options.Sandbox,
+        options.IsSandbox,
     });
 }).RequireAuthorization();
 
@@ -115,28 +115,28 @@ app.MapGet("/api/notifications", (NotificationStore store) =>
 // 3. Raw capture endpoints — development only
 if (app.Environment.IsDevelopment())
 {
-    app.MapPost("/api/create-payment-raw", async (CreatePaymentRequest body, Przelewy24Options options) =>
+    app.MapPost("/api/create-payment-raw", async (CreatePaymentRequest body, P24Options options) =>
     {
         var (provider, handler) = ProviderWithCapture(options);
         await provider.CreatePaymentAsync(body);
         return Results.Ok(handler.Capture());
     }).RequireAuthorization();
 
-    app.MapGet("/api/payment-status-raw/{sessionId}", async (string sessionId, Przelewy24Options options) =>
+    app.MapGet("/api/payment-status-raw/{sessionId}", async (string sessionId, P24Options options) =>
     {
         var (provider, handler) = ProviderWithCapture(options);
         await provider.GetPaymentStatusAsync(sessionId);
         return Results.Ok(handler.Capture());
     }).RequireAuthorization();
 
-    app.MapPost("/api/confirm-payment-raw", async (ConfirmPaymentRequest body, Przelewy24Options options) =>
+    app.MapPost("/api/confirm-payment-raw", async (ConfirmPaymentRequest body, P24Options options) =>
     {
         var (provider, handler) = ProviderWithCapture(options);
         await provider.ConfirmPaymentAsync(body);
         return Results.Ok(handler.Capture());
     }).RequireAuthorization();
 
-    app.MapPost("/api/refund-raw", async (RefundRequest body, Przelewy24Options options) =>
+    app.MapPost("/api/refund-raw", async (RefundRequest body, P24Options options) =>
     {
         var (provider, handler) = ProviderWithCapture(options);
         await provider.RefundAsync(body);

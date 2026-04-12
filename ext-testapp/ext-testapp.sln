@@ -1,8 +1,10 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.5.2.0
+# Visual Studio Version 18
+VisualStudioVersion = 18.4.11626.88 stable
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExtTestApp", "ExtTestApp.csproj", "{C6C1A62E-1B55-8C0D-57A5-D3723F6E5640}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Payment.Core.P24", "..\src\Payment.Core.P24\Payment.Core.P24.csproj", "{5598DA15-DCCA-B78A-FD3D-88B6B28EF8C8}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -14,6 +16,10 @@ Global
 		{C6C1A62E-1B55-8C0D-57A5-D3723F6E5640}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C6C1A62E-1B55-8C0D-57A5-D3723F6E5640}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C6C1A62E-1B55-8C0D-57A5-D3723F6E5640}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5598DA15-DCCA-B78A-FD3D-88B6B28EF8C8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5598DA15-DCCA-B78A-FD3D-88B6B28EF8C8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5598DA15-DCCA-B78A-FD3D-88B6B28EF8C8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5598DA15-DCCA-B78A-FD3D-88B6B28EF8C8}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

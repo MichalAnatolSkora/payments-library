@@ -1,6 +1,6 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/Payment.Infrastructure.P24/Payment.Infrastructure.P24.csproj" />
+    <Project Path="src/Payment.Core.P24/Payment.Core.P24.csproj" />
     <Project Path="src/Payment.Models/Payment.Models.csproj" />
   </Folder>
   <Folder Name="/testapp/">
