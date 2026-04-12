@@ -9,9 +9,9 @@ namespace Payment.Sample.Api.Controllers;
 [Route("api")]
 public class P24Controller : ControllerBase
 {
+    private readonly IP24ProviderFactory _providerFactory;
     private readonly NotificationStore _store;
     private readonly ILogger<P24Controller> _logger;
-    private readonly IP24ProviderFactory _providerFactory;
 
     public P24Controller(
         IP24ProviderFactory providerFactory,

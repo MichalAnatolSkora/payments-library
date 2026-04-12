@@ -33,10 +33,6 @@ public sealed class P24Provider : IPaymentProvider
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", credentials);
     }
 
-    // -------------------------------------------------------------------------
-    // IPaymentProvider
-    // -------------------------------------------------------------------------
-
     public async Task<CreatePaymentResult> CreatePaymentAsync(
         CreatePaymentRequest request,
         CancellationToken cancellationToken = default)
@@ -62,7 +58,7 @@ public sealed class P24Provider : IPaymentProvider
         };
 
         var response = await _httpClient.PostAsJsonAsync("/api/v1/transaction/register", body, cancellationToken);
-        var result = await ReadJsonOrNull<P24ApiResponse<RegisterTransactionData>>(response, cancellationToken);
+        var result = await JsonHelper.ReadJsonOrNull<P24ApiResponse<RegisterTransactionData>>(response, cancellationToken);
 
         if (result?.Data is null)
         {
@@ -80,7 +76,7 @@ public sealed class P24Provider : IPaymentProvider
         var response = await _httpClient.GetAsync(
             $"/api/v1/transaction/by/sessionId/{Uri.EscapeDataString(sessionId)}", cancellationToken);
 
-        var result = await ReadJsonOrNull<P24ApiResponse<TransactionStatusData>>(response, cancellationToken);
+        var result = await JsonHelper.ReadJsonOrNull<P24ApiResponse<TransactionStatusData>>(response, cancellationToken);
 
         var data = result?.Data;
         if (data is null)
@@ -171,7 +167,7 @@ public sealed class P24Provider : IPaymentProvider
         };
 
         var response = await _httpClient.PutAsJsonAsync("/api/v1/transaction/verify", body, cancellationToken);
-        var result = await ReadJsonOrNull<P24ApiResponse<JsonElement>>(response, cancellationToken);
+        var result = await JsonHelper.ReadJsonOrNull<P24ApiResponse<JsonElement>>(response, cancellationToken);
 
         return result?.Error is null
             ? ConfirmPaymentResult.Ok()
@@ -219,33 +215,11 @@ public sealed class P24Provider : IPaymentProvider
         };
 
         var response = await _httpClient.PostAsJsonAsync("/api/v1/transaction/refund", body, cancellationToken);
-        var result = await ReadJsonOrNull<P24ApiResponse<JsonElement>>(response, cancellationToken);
+        var result = await JsonHelper.ReadJsonOrNull<P24ApiResponse<JsonElement>>(response, cancellationToken);
 
         return result?.Error is null
             ? RefundResult.Ok()
             : RefundResult.Fail(result.Error, result.ErrorMessage ?? "Refund failed.");
-    }
-
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
-
-    private static async Task<T?> ReadJsonOrNull<T>(HttpResponseMessage response, CancellationToken ct)
-    {
-        var contentType = response.Content.Headers.ContentType?.MediaType ?? "";
-        if (!contentType.Contains("json", StringComparison.OrdinalIgnoreCase))
-        {
-            return default;
-        }
-
-        try
-        {
-            return await response.Content.ReadFromJsonAsync<T>(cancellationToken: ct);
-        }
-        catch (JsonException)
-        {
-            return default;
-        }
     }
 
     private static PaymentState MapState(int status) => status switch
