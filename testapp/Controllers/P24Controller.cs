@@ -1,8 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
+using Payment.Core.P24.Abstractions;
 using Payment.Core.P24.Options;
-using Payment.Core.P24.Providers.Przelewy24;
 using Payment.Models.Requests;
-using PaymentsLibrary.TestApp.Handlers;
 using PaymentsLibrary.TestApp.Services;
 
 namespace PaymentsLibrary.TestApp.Controllers;
@@ -14,18 +13,24 @@ public class P24Controller : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly NotificationStore _store;
     private readonly ILogger<P24Controller> _logger;
+    private readonly IP24ProviderFactory _providerFactory;
 
-    public P24Controller(IConfiguration configuration, NotificationStore store, ILogger<P24Controller> logger)
+    public P24Controller(
+        IConfiguration configuration,
+        NotificationStore store,
+        ILogger<P24Controller> logger,
+        IP24ProviderFactory providerFactory)
     {
         _configuration = configuration;
         _store = store;
         _logger = logger;
+        _providerFactory = providerFactory;
     }
 
     [HttpGet("config")]
     public IActionResult GetConfig()
     {
-        var section = _configuration.GetSection("Przelewy24");
+        var section = _configuration.GetSection("P24");
         return Ok(new
         {
             MerchantId = section.GetValue<int>("MerchantId"),
@@ -39,7 +44,7 @@ public class P24Controller : ControllerBase
     [HttpPost("create-payment")]
     public async Task<IActionResult> CreatePayment([FromBody] CreatePaymentRequest request)
     {
-        var provider = ProviderFromHeaders(Request);
+        var provider = _providerFactory.Create(OptionsFromHeaders(Request));
         var result = await provider.CreatePaymentAsync(request);
         return Ok(result);
     }
@@ -47,7 +52,7 @@ public class P24Controller : ControllerBase
     [HttpPost("create-payment-raw")]
     public async Task<IActionResult> CreatePaymentRaw([FromBody] CreatePaymentRequest request)
     {
-        var (provider, handler) = ProviderWithCapture(Request);
+        var (provider, handler) = _providerFactory.CreateWithCapture(OptionsFromHeaders(Request));
         await provider.CreatePaymentAsync(request);
         return Ok(handler.Capture());
     }
@@ -55,7 +60,7 @@ public class P24Controller : ControllerBase
     [HttpGet("payment-status/{sessionId}")]
     public async Task<IActionResult> GetPaymentStatus(string sessionId)
     {
-        var provider = ProviderFromHeaders(Request);
+        var provider = _providerFactory.Create(OptionsFromHeaders(Request));
         var result = await provider.GetPaymentStatusAsync(sessionId);
         return Ok(result);
     }
@@ -63,7 +68,7 @@ public class P24Controller : ControllerBase
     [HttpGet("payment-status-raw/{sessionId}")]
     public async Task<IActionResult> GetPaymentStatusRaw(string sessionId)
     {
-        var (provider, handler) = ProviderWithCapture(Request);
+        var (provider, handler) = _providerFactory.CreateWithCapture(OptionsFromHeaders(Request));
         await provider.GetPaymentStatusAsync(sessionId);
         return Ok(handler.Capture());
     }
@@ -71,7 +76,7 @@ public class P24Controller : ControllerBase
     [HttpPost("confirm-payment")]
     public async Task<IActionResult> ConfirmPayment([FromBody] ConfirmPaymentRequest request)
     {
-        var provider = ProviderFromHeaders(Request);
+        var provider = _providerFactory.Create(OptionsFromHeaders(Request));
         var result = await provider.ConfirmPaymentAsync(request);
         return Ok(result);
     }
@@ -79,7 +84,7 @@ public class P24Controller : ControllerBase
     [HttpPost("confirm-payment-raw")]
     public async Task<IActionResult> ConfirmPaymentRaw([FromBody] ConfirmPaymentRequest request)
     {
-        var (provider, handler) = ProviderWithCapture(Request);
+        var (provider, handler) = _providerFactory.CreateWithCapture(OptionsFromHeaders(Request));
         await provider.ConfirmPaymentAsync(request);
         return Ok(handler.Capture());
     }
@@ -87,7 +92,7 @@ public class P24Controller : ControllerBase
     [HttpPost("validate-notification")]
     public IActionResult ValidateNotification([FromBody] PaymentNotification request)
     {
-        var provider = ProviderFromHeaders(Request);
+        var provider = _providerFactory.Create(OptionsFromHeaders(Request));
         var valid = provider.ValidateNotification(request);
         return Ok(new { valid });
     }
@@ -95,7 +100,7 @@ public class P24Controller : ControllerBase
     [HttpPost("refund")]
     public async Task<IActionResult> Refund([FromBody] RefundRequest request)
     {
-        var provider = ProviderFromHeaders(Request);
+        var provider = _providerFactory.Create(OptionsFromHeaders(Request));
         var result = await provider.RefundAsync(request);
         return Ok(result);
     }
@@ -103,7 +108,7 @@ public class P24Controller : ControllerBase
     [HttpPost("refund-raw")]
     public async Task<IActionResult> RefundRaw([FromBody] RefundRequest request)
     {
-        var (provider, handler) = ProviderWithCapture(Request);
+        var (provider, handler) = _providerFactory.CreateWithCapture(OptionsFromHeaders(Request));
         await provider.RefundAsync(request);
         return Ok(handler.Capture());
     }
@@ -123,7 +128,7 @@ public class P24Controller : ControllerBase
             IsSandbox = section.GetValue<bool>("Sandbox"),
         };
 
-        var provider = new Przelewy24Provider(options, new HttpClient());
+        var provider = _providerFactory.Create(options);
 
         var notification = new PaymentNotification
         {
@@ -164,14 +169,4 @@ public class P24Controller : ControllerBase
         CrcKey = httpRequest.Headers["X-CrcKey"].ToString(),
         IsSandbox = httpRequest.Headers["X-Sandbox"].ToString().ToLower() is "true" or "1",
     };
-
-    private static Przelewy24Provider ProviderFromHeaders(HttpRequest req)
-        => new(OptionsFromHeaders(req), new HttpClient());
-
-    private static (Przelewy24Provider provider, CapturingHandler handler) ProviderWithCapture(HttpRequest req)
-    {
-        var capturing = new CapturingHandler();
-        var provider = new Przelewy24Provider(OptionsFromHeaders(req), new HttpClient(capturing));
-        return (provider, capturing);
-    }
 }

@@ -27,7 +27,7 @@ builder.Services
 
 builder.Services.AddAuthorization();
 builder.Services.AddSingleton<NotificationStore>();
-builder.Services.AddPrzelewy24(builder.Configuration);
+builder.Services.AddP24(builder.Configuration);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -63,10 +63,10 @@ app.UseAuthorization();
 
 // --- raw capture helper (debug only, bypasses DI) ---
 
-static (Przelewy24Provider provider, CapturingHandler handler) ProviderWithCapture(P24Options options)
+static (P24Provider provider, CapturingHandler handler) ProviderWithCapture(P24Options options)
 {
     var capturing = new CapturingHandler();
-    return (new Przelewy24Provider(options, new HttpClient(capturing)), capturing);
+    return (new P24Provider(options, new HttpClient(capturing)), capturing);
 }
 
 // --- API endpoints ---

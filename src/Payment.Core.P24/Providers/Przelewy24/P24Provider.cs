@@ -16,12 +16,12 @@ namespace Payment.Core.P24.Providers.Przelewy24;
 /// Przelewy24 (P24) implementation of <see cref="IPaymentProvider"/>.
 /// REST API docs: https://developers.przelewy24.pl/
 /// </summary>
-public sealed class Przelewy24Provider : IPaymentProvider
+public sealed class P24Provider : IPaymentProvider
 {
     private readonly P24Options _options;
     private readonly HttpClient _httpClient;
 
-    public Przelewy24Provider(P24Options options, HttpClient httpClient)
+    public P24Provider(P24Options options, HttpClient httpClient)
     {
         _options = options;
         _httpClient = httpClient;

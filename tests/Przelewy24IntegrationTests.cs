@@ -13,7 +13,7 @@ namespace PaymentsLibrary.Tests;
 /// </summary>
 public sealed class Przelewy24IntegrationTests : IDisposable
 {
-    private readonly Przelewy24Provider _provider;
+    private readonly P24Provider _provider;
     private readonly HttpClient _httpClient = new();
     private readonly ITestOutputHelper _output;
 
@@ -28,7 +28,7 @@ public sealed class Przelewy24IntegrationTests : IDisposable
         var options = config.GetSection("Przelewy24").Get<P24Options>()
             ?? throw new InvalidOperationException("Missing Przelewy24 config.");
 
-        _provider = new Przelewy24Provider(options, _httpClient);
+        _provider = new P24Provider(options, _httpClient);
     }
 
     // -------------------------------------------------------------------------

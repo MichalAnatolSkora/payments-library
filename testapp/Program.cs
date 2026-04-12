@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Payment.Core.P24.Options;
 using PaymentsLibrary.TestApp.Services;
 using Swashbuckle.AspNetCore.Filters;
 
@@ -16,8 +17,8 @@ builder.Services
         o.JsonSerializerOptions.PropertyNamingPolicy = null;
         o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
-
 builder.Services.AddSingleton<NotificationStore>();
+builder.Services.AddP24(builder.Configuration);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {

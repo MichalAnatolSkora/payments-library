@@ -1,4 +1,7 @@
-namespace PaymentsLibrary.TestApp.Handlers;
+using System.Net.Http;
+using System.Text;
+
+namespace Payment.Core.P24.Handlers;
 
 public sealed class CapturingHandler : DelegatingHandler
 {
@@ -22,7 +25,7 @@ public sealed class CapturingHandler : DelegatingHandler
         {
             _reqBody = await request.Content.ReadAsStringAsync(cancellationToken);
             request.Content = new StringContent(_reqBody,
-                System.Text.Encoding.UTF8,
+                Encoding.UTF8,
                 request.Content.Headers.ContentType?.MediaType ?? "application/json");
         }
 
@@ -31,7 +34,7 @@ public sealed class CapturingHandler : DelegatingHandler
         _resHeaders = FormatHeaders(response.Headers);
         _resBody = await response.Content.ReadAsStringAsync(cancellationToken);
         response.Content = new StringContent(_resBody,
-            System.Text.Encoding.UTF8,
+            Encoding.UTF8,
             response.Content.Headers.ContentType?.MediaType ?? "application/json");
         return response;
     }
