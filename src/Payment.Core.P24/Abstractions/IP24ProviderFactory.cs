@@ -1,6 +1,6 @@
 using Payment.Core.P24.Handlers;
 using Payment.Core.P24.Options;
-using Payment.Core.P24.Providers.Przelewy24;
+using Payment.Core.P24.Providers;
 
 namespace Payment.Core.P24.Abstractions;
 

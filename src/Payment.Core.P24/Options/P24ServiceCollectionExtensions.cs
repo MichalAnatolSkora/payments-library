@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Payment.Core.P24.Abstractions;
-using Payment.Core.P24.Providers.Przelewy24;
+using Payment.Core.P24.Providers;
 
 namespace Payment.Core.P24.Options;
 

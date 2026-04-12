@@ -5,12 +5,12 @@ using System.Text.Json;
 using Payment.Core.P24.Abstractions;
 using Payment.Core.P24.Models;
 using Payment.Core.P24.Options;
-using Payment.Core.P24.Providers.Przelewy24.Models;
+using Payment.Core.P24.Providers.Models;
 using Payment.Core.P24.Security;
 using Payment.Models.Requests;
 using Payment.Models.Results;
 
-namespace Payment.Core.P24.Providers.Przelewy24;
+namespace Payment.Core.P24.Providers;
 
 /// <summary>
 /// Przelewy24 (P24) implementation of <see cref="IPaymentProvider"/>.

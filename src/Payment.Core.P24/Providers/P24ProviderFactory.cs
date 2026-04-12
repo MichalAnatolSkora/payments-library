@@ -2,7 +2,7 @@ using Payment.Core.P24.Abstractions;
 using Payment.Core.P24.Handlers;
 using Payment.Core.P24.Options;
 
-namespace Payment.Core.P24.Providers.Przelewy24;
+namespace Payment.Core.P24.Providers;
 
 public class P24ProviderFactory : IP24ProviderFactory
 {

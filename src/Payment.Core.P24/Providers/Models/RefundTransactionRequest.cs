@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Payment.Core.P24.Providers.Przelewy24.Models;
+namespace Payment.Core.P24.Providers.Models;
 
 internal sealed class RefundTransactionRequest
 {
