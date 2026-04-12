@@ -2,9 +2,9 @@ using Clerk.Net.AspNetCore.Security;
 using ExtTestApp.Handlers;
 using ExtTestApp.Services;
 using Microsoft.Extensions.FileProviders;
-using Payment.Infrastructure.P24.Abstractions;
-using Payment.Infrastructure.P24.Options;
-using Payment.Infrastructure.P24.Providers.Przelewy24;
+using Payment.Core.P24.Abstractions;
+using Payment.Core.P24.Options;
+using Payment.Core.P24.Providers.Przelewy24;
 using Payment.Models.Requests;
 using Swashbuckle.AspNetCore.Filters;
 

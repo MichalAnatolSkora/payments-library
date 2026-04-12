@@ -1,4 +1,4 @@
-namespace Payment.Infrastructure.P24.Options;
+namespace Payment.Core.P24.Options;
 
 public sealed class P24Options
 {

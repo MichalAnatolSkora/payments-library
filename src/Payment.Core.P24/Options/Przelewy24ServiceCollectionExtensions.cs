@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Payment.Infrastructure.P24.Abstractions;
-using Payment.Infrastructure.P24.Providers.Przelewy24;
+using Payment.Core.P24.Abstractions;
+using Payment.Core.P24.Providers.Przelewy24;
 
-namespace Payment.Infrastructure.P24.Options;
+namespace Payment.Core.P24.Options;
 
 public static class Przelewy24ServiceCollectionExtensions
 {

@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Configuration;
-using Payment.Infrastructure.P24.Models;
-using Payment.Infrastructure.P24.Options;
-using Payment.Infrastructure.P24.Providers.Przelewy24;
+using Payment.Core.P24.Models;
+using Payment.Core.P24.Options;
+using Payment.Core.P24.Providers.Przelewy24;
 using Payment.Models.Requests;
 using Xunit.Abstractions;
 

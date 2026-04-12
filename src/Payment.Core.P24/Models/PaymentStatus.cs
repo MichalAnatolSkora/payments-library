@@ -1,4 +1,4 @@
-namespace Payment.Infrastructure.P24.Models;
+namespace Payment.Core.P24.Models;
 
 public sealed class PaymentStatus
 {

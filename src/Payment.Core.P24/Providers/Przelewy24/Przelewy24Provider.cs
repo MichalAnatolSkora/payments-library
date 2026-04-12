@@ -2,15 +2,15 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
-using Payment.Infrastructure.P24.Abstractions;
-using Payment.Infrastructure.P24.Models;
-using Payment.Infrastructure.P24.Options;
-using Payment.Infrastructure.P24.Providers.Przelewy24.Models;
-using Payment.Infrastructure.P24.Security;
+using Payment.Core.P24.Abstractions;
+using Payment.Core.P24.Models;
+using Payment.Core.P24.Options;
+using Payment.Core.P24.Providers.Przelewy24.Models;
+using Payment.Core.P24.Security;
 using Payment.Models.Requests;
 using Payment.Models.Results;
 
-namespace Payment.Infrastructure.P24.Providers.Przelewy24;
+namespace Payment.Core.P24.Providers.Przelewy24;
 
 /// <summary>
 /// Przelewy24 (P24) implementation of <see cref="IPaymentProvider"/>.

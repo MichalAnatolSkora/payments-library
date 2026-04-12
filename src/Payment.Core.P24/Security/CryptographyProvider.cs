@@ -2,7 +2,7 @@
 using System.Text;
 using System.Text.Json;
 
-namespace Payment.Infrastructure.P24.Security;
+namespace Payment.Core.P24.Security;
 
 internal static class CryptographyProvider
 {
