@@ -483,4 +483,4 @@ $RECYCLE.BIN/
 
 # Local development secrets
 appsettings.Development.json
-tests/appsettings.Development.json
+tests/appsettings.Testing.json

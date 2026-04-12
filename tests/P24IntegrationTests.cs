@@ -15,6 +15,7 @@ public sealed class P24IntegrationTests : IDisposable
 {
     private readonly P24Provider _provider;
     private readonly HttpClient _httpClient = new();
+    private readonly P24Options _options;
     private readonly ITestOutputHelper _output;
 
     public P24IntegrationTests(ITestOutputHelper output)
@@ -22,13 +23,13 @@ public sealed class P24IntegrationTests : IDisposable
         _output = output;
 
         var config = new ConfigurationBuilder()
-            .AddJsonFile("appsettings.Development.json", optional: false)
+            .AddJsonFile("appsettings.Testing.json", optional: false)
             .Build();
 
-        var options = config.GetSection("P24").Get<P24Options>()
+        _options = config.GetSection("P24").Get<P24Options>()
             ?? throw new InvalidOperationException("Missing P24 config.");
 
-        _provider = new P24Provider(options, _httpClient);
+        _provider = new P24Provider(_options, _httpClient);
     }
 
     // -------------------------------------------------------------------------
@@ -61,7 +62,7 @@ public sealed class P24IntegrationTests : IDisposable
             CustomerEmail = "test@example.com",
             ReturnUrl = "https://example.com/return",
             NotifyUrl = "https://example.com/notify",
-            CustomerName = "Jan Testowy",
+            CustomerName = "Jan Kowalski",
             Country = "PL",
             Language = "pl",
         });
@@ -153,12 +154,8 @@ public sealed class P24IntegrationTests : IDisposable
         var orderId = 12345;
         var amount = 200;
         var currency = "PLN";
-
-        var config = new ConfigurationBuilder()
-            .AddJsonFile("appsettings.Development.json", optional: false)
-            .Build();
-        var merchantId = int.Parse(config["P24:MerchantId"]!);
-        var posId = int.Parse(config["P24:PosId"]!);
+        var merchantId = _options.MerchantId;
+        var posId = _options.PosId;
         var methodId = 154;
         var statement = "p24-123-abc";
 
@@ -199,22 +196,14 @@ public sealed class P24IntegrationTests : IDisposable
         Assert.False(_provider.ValidateNotification(notification));
     }
 
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
-
     /// <summary>
     /// Replicates the SHA-384 sign formula so we can build valid test notifications.
     /// </summary>
-    private static string ComputeExpectedSign(
+    private string ComputeExpectedSign(
         int merchantId, int posId, string sessionId, int orderId, int amount,
         int originAmount, string currency, int methodId, string statement)
     {
-        // Read CRC from config — same key the provider uses
-        var config = new ConfigurationBuilder()
-            .AddJsonFile("appsettings.Development.json", optional: false)
-            .Build();
-        var crc = config["P24:CrcKey"]!;
+        var crc = _options.CrcKey;
 
         var payload = System.Text.Json.JsonSerializer.Serialize(new
         {

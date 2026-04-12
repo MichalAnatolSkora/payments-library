@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Payment.Core.P24.Providers.Models;
+namespace Payment.Core.P24.Models;
 
 internal sealed class RegisterTransactionRequest
 {

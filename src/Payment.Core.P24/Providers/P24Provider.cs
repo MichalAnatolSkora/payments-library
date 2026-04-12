@@ -5,7 +5,6 @@ using System.Text.Json;
 using Payment.Core.P24.Abstractions;
 using Payment.Core.P24.Models;
 using Payment.Core.P24.Options;
-using Payment.Core.P24.Providers.Models;
 using Payment.Core.P24.Security;
 using Payment.Models.Requests;
 using Payment.Models.Results;

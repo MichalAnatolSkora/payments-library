@@ -1,24 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Payment.Core.P24.Providers.Models;
-
-internal sealed class P24ApiResponse<T>
-{
-    [JsonPropertyName("data")]
-    public T? Data { get; init; }
-
-    [JsonPropertyName("error")]
-    public string? Error { get; init; }
-
-    [JsonPropertyName("errorMessage")]
-    public string? ErrorMessage { get; init; }
-}
-
-internal sealed class RegisterTransactionData
-{
-    [JsonPropertyName("token")]
-    public required string Token { get; init; }
-}
+namespace Payment.Core.P24.Models;
 
 internal sealed class TransactionStatusData
 {

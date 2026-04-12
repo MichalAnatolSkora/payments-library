@@ -4,7 +4,7 @@ using ExtTestApp.Services;
 using Microsoft.Extensions.FileProviders;
 using Payment.Core.P24.Abstractions;
 using Payment.Core.P24.Options;
-using Payment.Core.P24.Providers.Przelewy24;
+using Payment.Core.P24.Providers;
 using Payment.Models.Requests;
 using Swashbuckle.AspNetCore.Filters;
 
