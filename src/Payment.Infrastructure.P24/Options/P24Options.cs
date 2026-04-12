@@ -1,31 +1,37 @@
 namespace Payment.Infrastructure.P24.Options;
 
-public sealed class Przelewy24Options
+public sealed class P24Options
 {
+    /// <summary>
+    /// Gets a merchant identification number.
+    /// </summary>
     public required int MerchantId { get; init; }
 
     /// <summary>
-    /// Point of Sale ID — usually equals MerchantId.
+    /// Gets a shop identification number (defaults to merchant ID).
     /// </summary>
     public required int PosId { get; init; }
 
     /// <summary>
-    /// Reports key ("Klucz do raportów") used as the Basic Auth password.
+    /// Gets an API key.
     /// </summary>
     public required string ApiKey { get; init; }
 
     /// <summary>
-    /// CRC key used for SHA-384 signature computation.
+    /// Gets a cyclic redundancy check.
     /// </summary>
     public required string CrcKey { get; init; }
 
-    public bool Sandbox { get; init; } = false;
+    /// <summary>
+    /// Gets a value indicating whether the environment is a sandbox.
+    /// </summary>
+    public bool IsSandbox { get; init; } = false;
 
     public Uri BaseAddress
     {
         get
         {
-            var uri = Sandbox
+            var uri = IsSandbox
                 ? "https://sandbox.przelewy24.pl"
                 : "https://secure.przelewy24.pl";
             return new Uri(uri);

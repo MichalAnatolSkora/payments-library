@@ -37,18 +37,18 @@ public class P24Controller : ControllerBase
     }
 
     [HttpPost("create-payment")]
-    public async Task<IActionResult> CreatePayment([FromBody] CreatePaymentRequest body)
+    public async Task<IActionResult> CreatePayment([FromBody] CreatePaymentRequest request)
     {
         var provider = ProviderFromHeaders(Request);
-        var result = await provider.CreatePaymentAsync(body);
+        var result = await provider.CreatePaymentAsync(request);
         return Ok(result);
     }
 
     [HttpPost("create-payment-raw")]
-    public async Task<IActionResult> CreatePaymentRaw([FromBody] CreatePaymentRequest body)
+    public async Task<IActionResult> CreatePaymentRaw([FromBody] CreatePaymentRequest request)
     {
         var (provider, handler) = ProviderWithCapture(Request);
-        await provider.CreatePaymentAsync(body);
+        await provider.CreatePaymentAsync(request);
         return Ok(handler.Capture());
     }
 
@@ -69,42 +69,42 @@ public class P24Controller : ControllerBase
     }
 
     [HttpPost("confirm-payment")]
-    public async Task<IActionResult> ConfirmPayment([FromBody] ConfirmPaymentRequest body)
+    public async Task<IActionResult> ConfirmPayment([FromBody] ConfirmPaymentRequest request)
     {
         var provider = ProviderFromHeaders(Request);
-        var result = await provider.ConfirmPaymentAsync(body);
+        var result = await provider.ConfirmPaymentAsync(request);
         return Ok(result);
     }
 
     [HttpPost("confirm-payment-raw")]
-    public async Task<IActionResult> ConfirmPaymentRaw([FromBody] ConfirmPaymentRequest body)
+    public async Task<IActionResult> ConfirmPaymentRaw([FromBody] ConfirmPaymentRequest request)
     {
         var (provider, handler) = ProviderWithCapture(Request);
-        await provider.ConfirmPaymentAsync(body);
+        await provider.ConfirmPaymentAsync(request);
         return Ok(handler.Capture());
     }
 
     [HttpPost("validate-notification")]
-    public IActionResult ValidateNotification([FromBody] PaymentNotification body)
+    public IActionResult ValidateNotification([FromBody] PaymentNotification request)
     {
         var provider = ProviderFromHeaders(Request);
-        var valid = provider.ValidateNotification(body);
+        var valid = provider.ValidateNotification(request);
         return Ok(new { valid });
     }
 
     [HttpPost("refund")]
-    public async Task<IActionResult> Refund([FromBody] RefundRequest body)
+    public async Task<IActionResult> Refund([FromBody] RefundRequest request)
     {
         var provider = ProviderFromHeaders(Request);
-        var result = await provider.RefundAsync(body);
+        var result = await provider.RefundAsync(request);
         return Ok(result);
     }
 
     [HttpPost("refund-raw")]
-    public async Task<IActionResult> RefundRaw([FromBody] RefundRequest body)
+    public async Task<IActionResult> RefundRaw([FromBody] RefundRequest request)
     {
         var (provider, handler) = ProviderWithCapture(Request);
-        await provider.RefundAsync(body);
+        await provider.RefundAsync(request);
         return Ok(handler.Capture());
     }
 
@@ -114,13 +114,13 @@ public class P24Controller : ControllerBase
         _logger.LogInformation("Received P24 notification for SessionId: {SessionId}", payload.SessionId);
 
         var section = _configuration.GetSection("Przelewy24");
-        var options = new Przelewy24Options
+        var options = new P24Options
         {
             MerchantId = section.GetValue<int>("MerchantId"),
             PosId = section.GetValue<int>("PosId"),
             ApiKey = section.GetValue<string>("ApiKey") ?? string.Empty,
             CrcKey = section.GetValue<string>("CrcKey") ?? string.Empty,
-            Sandbox = section.GetValue<bool>("Sandbox"),
+            IsSandbox = section.GetValue<bool>("Sandbox"),
         };
 
         var provider = new Przelewy24Provider(options, new HttpClient());
@@ -156,13 +156,13 @@ public class P24Controller : ControllerBase
         return Ok(_store.GetAll());
     }
 
-    private static Przelewy24Options OptionsFromHeaders(HttpRequest req) => new()
+    private static P24Options OptionsFromHeaders(HttpRequest httpRequest) => new()
     {
-        MerchantId = int.Parse(req.Headers["X-MerchantId"].ToString()),
-        PosId = int.Parse(req.Headers["X-PosId"].ToString()),
-        ApiKey = req.Headers["X-ApiKey"].ToString(),
-        CrcKey = req.Headers["X-CrcKey"].ToString(),
-        Sandbox = req.Headers["X-Sandbox"].ToString().ToLower() is "true" or "1",
+        MerchantId = int.Parse(httpRequest.Headers["X-MerchantId"].ToString()),
+        PosId = int.Parse(httpRequest.Headers["X-PosId"].ToString()),
+        ApiKey = httpRequest.Headers["X-ApiKey"].ToString(),
+        CrcKey = httpRequest.Headers["X-CrcKey"].ToString(),
+        IsSandbox = httpRequest.Headers["X-Sandbox"].ToString().ToLower() is "true" or "1",
     };
 
     private static Przelewy24Provider ProviderFromHeaders(HttpRequest req)

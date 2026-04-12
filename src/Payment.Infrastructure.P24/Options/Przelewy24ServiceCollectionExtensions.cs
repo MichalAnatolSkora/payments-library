@@ -28,13 +28,13 @@ public static class Przelewy24ServiceCollectionExtensions
     {
         var options = configuration
             .GetSection("Przelewy24")
-            .Get<Przelewy24Options>()
+            .Get<P24Options>()
             ?? throw new InvalidOperationException(
                 "Missing 'Przelewy24' configuration section.");
 
         services.AddHttpClient<IPaymentProvider, Przelewy24Provider>(client =>
         {
-            client.BaseAddress = new Uri(options.Sandbox
+            client.BaseAddress = new Uri(options.IsSandbox
                 ? "https://sandbox.przelewy24.pl"
                 : "https://secure.przelewy24.pl");
         });

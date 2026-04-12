@@ -25,7 +25,7 @@ public sealed class Przelewy24IntegrationTests : IDisposable
             .AddJsonFile("appsettings.Development.json", optional: false)
             .Build();
 
-        var options = config.GetSection("Przelewy24").Get<Przelewy24Options>()
+        var options = config.GetSection("Przelewy24").Get<P24Options>()
             ?? throw new InvalidOperationException("Missing Przelewy24 config.");
 
         _provider = new Przelewy24Provider(options, _httpClient);

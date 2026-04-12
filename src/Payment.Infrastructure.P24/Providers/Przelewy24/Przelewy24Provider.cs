@@ -18,13 +18,13 @@ namespace Payment.Infrastructure.P24.Providers.Przelewy24;
 /// </summary>
 public sealed class Przelewy24Provider : IPaymentProvider
 {
-    private readonly Przelewy24Options _options;
+    private readonly P24Options _options;
     private readonly HttpClient _httpClient;
 
-    public Przelewy24Provider(Przelewy24Options options, HttpClient httpClientClient)
+    public Przelewy24Provider(P24Options options, HttpClient httpClient)
     {
         _options = options;
-        _httpClient = httpClientClient;
+        _httpClient = httpClient;
 
         _httpClient.BaseAddress ??= options.BaseAddress;
 
