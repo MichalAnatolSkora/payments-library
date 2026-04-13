@@ -51,46 +51,57 @@ public sealed class P24IntegrationTests : IDisposable
     // -------------------------------------------------------------------------
 
     [Fact]
-    public async Task CreatePayment_ValidRequest_ReturnsRedirectUrl()
+    public async Task CreatePaymentAsync_ValidRequest_ReturnsRedirectUrl()
     {
-        var result = await _provider.CreatePaymentAsync(new CreatePaymentRequest
+        // Arrange
+        var request = new CreatePaymentRequest
         {
             SessionId = $"test-{Guid.NewGuid():N}",
             Amount = 100, // 1.00 PLN
             Currency = "PLN",
             Description = "Integration test payment",
             CustomerEmail = "test@example.com",
-            ReturnUrl = "https://example.com/return",
-            NotifyUrl = "https://example.com/notify",
             CustomerName = "Jan Kowalski",
             Country = "PL",
             Language = "pl",
-        });
+            ReturnUrl = "https://example.com/return",
+            NotifyUrl = "https://example.com/notify",
+        };
 
+        // Act
+        var result = await _provider.CreatePaymentAsync(request);
+
+        // Assert
         Assert.True(result.Success, $"Expected success. Error: {result.ErrorCode} – {result.ErrorMessage}");
         Assert.NotNull(result.RedirectUrl);
         Assert.Contains("https://sandbox.przelewy24.pl/trnRequest/", result.RedirectUrl);
         Assert.NotNull(result.PaymentToken);
 
         _output.WriteLine("=========================================================");
-        _output.WriteLine($"Go to this URL to complete payment: {result.RedirectUrl}");
+        _output.WriteLine($"Go to this URL to complete payment:\n{result.RedirectUrl}");
         _output.WriteLine("=========================================================");
     }
 
     [Fact]
-    public async Task CreatePayment_InvalidCurrency_ReturnsFail()
+    public async Task CreatePaymentAsync_InvalidCurrency_ReturnsFail()
     {
-        var result = await _provider.CreatePaymentAsync(new CreatePaymentRequest
+        // Arrange
+        var request = new CreatePaymentRequest
         {
             SessionId = $"test-{Guid.NewGuid():N}",
-            Amount = 100,
+            Amount = 100, // 1.00 PLN
             Currency = "XYZ", // Unsupported currency
             Description = "Should fail",
             CustomerEmail = "test@example.com",
-            ReturnUrl = "https://example.com/return",
             Country = "PL",
-        });
+            Language = "pl",
+            ReturnUrl = "https://example.com/return",
+        };
 
+        // Act
+        var result = await _provider.CreatePaymentAsync(request);
+
+        // Assert
         Assert.False(result.Success);
         Assert.NotNull(result.ErrorCode);
     }
