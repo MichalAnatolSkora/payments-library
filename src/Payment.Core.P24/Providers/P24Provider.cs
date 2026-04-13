@@ -37,7 +37,7 @@ public sealed class P24Provider : IPaymentProvider
 
     public async Task<CreatePaymentResult> CreatePaymentAsync(
         CreatePaymentRequest request,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
         var sign = CryptographyProvider.ComputeRegisterSign(
             _options.MerchantId, _options.CrcKey, request.SessionId, request.Amount, request.Currency);

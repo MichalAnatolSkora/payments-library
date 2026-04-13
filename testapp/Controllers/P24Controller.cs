@@ -24,18 +24,22 @@ public class P24Controller : ControllerBase
     }
 
     [HttpPost("create-payment")]
-    public async Task<IActionResult> CreatePayment([FromBody] CreatePaymentRequest request)
+    public async Task<IActionResult> CreatePayment(
+        [FromBody] CreatePaymentRequest request,
+        CancellationToken cancellation)
     {
         var provider = _providerFactory.Create();
-        var result = await provider.CreatePaymentAsync(request);
+        var result = await provider.CreatePaymentAsync(request, cancellation);
         return Ok(result);
     }
 
     [HttpPost("create-payment-raw")]
-    public async Task<IActionResult> CreatePaymentRaw([FromBody] CreatePaymentRequest request)
+    public async Task<IActionResult> CreatePaymentRaw(
+        [FromBody] CreatePaymentRequest request,
+        CancellationToken cancellation)
     {
         var (provider, handler) = _providerFactory.CreateWithCapture();
-        await provider.CreatePaymentAsync(request);
+        await provider.CreatePaymentAsync(request, cancellation);
         return Ok(handler.Capture());
     }
 

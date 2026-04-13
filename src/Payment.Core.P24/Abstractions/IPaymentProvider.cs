@@ -14,7 +14,7 @@ public interface IPaymentProvider
     /// </summary>
     Task<CreatePaymentResult> CreatePaymentAsync(
         CreatePaymentRequest request,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken);
 
     /// <summary>
     /// Retrieves the current status of a previously created payment.
