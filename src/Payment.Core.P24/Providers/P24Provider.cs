@@ -18,6 +18,7 @@ namespace Payment.Core.P24.Providers;
 public sealed class P24Provider : IPaymentProvider
 {
     private const string TransactionRegisterPath = "/api/v1/transaction/register";
+    private const string TransactionRequestPath = "/trnRequest/{0}";
 
     private readonly P24Options _options;
     private readonly HttpClient _httpClient;
@@ -51,7 +52,7 @@ public sealed class P24Provider : IPaymentProvider
             Description = request.Description,
             Email = request.CustomerEmail,
             Client = request.CustomerName,
-            Country = request.Country ?? "PL",
+            Country = request.Country,
             Language = request.Language,
             UrlReturn = request.ReturnUrl,
             UrlStatus = request.NotifyUrl,
@@ -63,11 +64,16 @@ public sealed class P24Provider : IPaymentProvider
 
         if (result?.Data is null)
         {
-            return CreatePaymentResult.Fail(result?.Error ?? "unknown", result?.ErrorMessage ?? "Registration failed.");
+            return CreatePaymentResult.Fail(
+                result?.Error ?? "unknown",
+                result?.ErrorMessage ?? "Transaction registration failed.");
         }
 
-        var redirectUrl = $"{_options.BaseAddress.OriginalString}/trnRequest/{result.Data.Token}";
-        return CreatePaymentResult.Ok(redirectUrl, result.Data.Token);
+        var baseUri = new Uri(_options.BaseAddress.OriginalString);
+        var path = string.Format(TransactionRequestPath, result.Data.Token);
+        var redirectUrl = new Uri(baseUri, path);
+
+        return CreatePaymentResult.Ok(redirectUrl.AbsoluteUri, result.Data.Token);
     }
 
     public async Task<PaymentStatus> GetPaymentStatusAsync(

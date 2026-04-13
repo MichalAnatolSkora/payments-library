@@ -3,50 +3,53 @@ namespace Payment.Models.Requests;
 public sealed class CreatePaymentRequest
 {
     /// <summary>
-    /// Unique order/session ID from your system (max 100 chars).
+    /// Unique identifier from merchant's system
     /// </summary>
     public required string SessionId { get; init; }
 
     /// <summary>
-    /// Amount in minor currency units (e.g. groszy for PLN, cents for USD).
+    /// Transaction amount expressed in the lowest currency unit, e.g. 1.23 PLN = 123
     /// </summary>
     public required int Amount { get; init; }
 
     /// <summary>
-    /// ISO 4217 currency code, e.g. "PLN", "EUR", "USD".
+    /// Currency compatible with ISO, e.g. PLN
     /// </summary>
     public required string Currency { get; init; }
 
     /// <summary>
-    /// Human-readable description shown to the customer.
+    /// Transaction description
     /// </summary>
     public required string Description { get; init; }
 
     /// <summary>
-    /// Customer e-mail address.</summary>
+    /// Customer's e-mail
+    /// </summary>
     public required string CustomerEmail { get; init; }
 
     /// <summary>
-    /// URL the customer is redirected to after completing (or cancelling) payment.
-    /// </summary>
-    public required string ReturnUrl { get; init; }
-
-    /// <summary>Webhook URL where the provider sends payment status notifications.
-    /// </summary>
-    public string? NotifyUrl { get; init; }
-
-    /// <summary>
-    /// Customer display name (optional but recommended).
+    /// Customer's first name and surname
     /// </summary>
     public string? CustomerName { get; init; }
 
     /// <summary>
-    /// ISO 3166-1 alpha-2 country code (optional).
+    /// Country codes compatible with ISO, e.g. PL, DE, etc.
     /// </summary>
-    public string? Country { get; init; }
+    public required string Country { get; init; }
 
     /// <summary>
-    /// UI language code, e.g. "pl", "en" (optional).
+    /// One of following language codes according to ISO 639-1:
+    /// bg, cs, de, en, es, fr, hr, hu, it, nl, pl, pt, se, sk, ro
     /// </summary>
-    public string? Language { get; init; }
+    public required string Language { get; init; }
+
+    /// <summary>
+    /// URL address to which customer will be redirected when transaction is complete
+    /// </summary>
+    public required string ReturnUrl { get; init; }
+
+    /// <summary>
+    /// URL address to which transaction status will be sent
+    /// </summary>
+    public string? NotifyUrl { get; init; }
 }
