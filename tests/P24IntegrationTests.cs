@@ -69,7 +69,7 @@ public sealed class P24IntegrationTests : IDisposable
         };
 
         // Act
-        var result = await _provider.CreatePaymentAsync(request);
+        var result = await _provider.CreatePaymentAsync(request, CancellationToken.None);
 
         // Assert
         Assert.True(result.Success, $"Expected success. Error: {result.ErrorCode} – {result.ErrorMessage}");
@@ -99,7 +99,7 @@ public sealed class P24IntegrationTests : IDisposable
         };
 
         // Act
-        var result = await _provider.CreatePaymentAsync(request);
+        var result = await _provider.CreatePaymentAsync(request, CancellationToken.None);
 
         // Assert
         Assert.False(result.Success);
@@ -116,7 +116,7 @@ public sealed class P24IntegrationTests : IDisposable
         var sessionId = $"test-{Guid.NewGuid():N}";
 
         // Register first so the session exists on P24's side
-        var created = await _provider.CreatePaymentAsync(new CreatePaymentRequest
+        var request = new CreatePaymentRequest
         {
             SessionId = sessionId,
             Amount = 100,
@@ -126,9 +126,12 @@ public sealed class P24IntegrationTests : IDisposable
             ReturnUrl = "https://example.com/return",
             Country = "PL",
             Language = "pl",
-        });
+        };
+        var createPaymentResponse = await _provider.CreatePaymentAsync(request, CancellationToken.None);
 
-        Assert.True(created.Success, $"CreatePayment failed: {created.ErrorCode} – {created.ErrorMessage}");
+        Assert.True(
+            createPaymentResponse.Success,
+            $"CreatePayment failed: {createPaymentResponse.ErrorCode} – {createPaymentResponse.ErrorMessage}");
 
         var status = await _provider.GetPaymentStatusAsync(sessionId);
 

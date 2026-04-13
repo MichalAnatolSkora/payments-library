@@ -90,7 +90,7 @@ app.MapGet("/api/config", (P24Options options) =>
 
 app.MapPost("/api/create-payment", async (CreatePaymentRequest body, IPaymentProvider provider) =>
 {
-    return Results.Ok(await provider.CreatePaymentAsync(body));
+    return Results.Ok(await provider.CreatePaymentAsync(body, CancellationToken.None));
 }).RequireAuthorization();
 
 app.MapGet("/api/payment-status/{sessionId}", async (string sessionId, IPaymentProvider provider) =>
@@ -118,7 +118,7 @@ if (app.Environment.IsDevelopment())
     app.MapPost("/api/create-payment-raw", async (CreatePaymentRequest body, P24Options options) =>
     {
         var (provider, handler) = ProviderWithCapture(options);
-        await provider.CreatePaymentAsync(body);
+        await provider.CreatePaymentAsync(body, CancellationToken.None);
         return Results.Ok(handler.Capture());
     }).RequireAuthorization();
 
