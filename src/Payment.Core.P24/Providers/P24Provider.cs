@@ -17,6 +17,8 @@ namespace Payment.Core.P24.Providers;
 /// </summary>
 public sealed class P24Provider : IPaymentProvider
 {
+    private const string TransactionRegisterPath = "/api/v1/transaction/register";
+
     private readonly P24Options _options;
     private readonly HttpClient _httpClient;
 
@@ -48,15 +50,15 @@ public sealed class P24Provider : IPaymentProvider
             Currency = request.Currency,
             Description = request.Description,
             Email = request.CustomerEmail,
-            UrlReturn = request.ReturnUrl,
-            UrlStatus = request.NotifyUrl,
             Client = request.CustomerName,
             Country = request.Country ?? "PL",
             Language = request.Language,
+            UrlReturn = request.ReturnUrl,
+            UrlStatus = request.NotifyUrl,
             Sign = sign,
         };
 
-        var response = await _httpClient.PostAsJsonAsync("/api/v1/transaction/register", body, cancellationToken);
+        var response = await _httpClient.PostAsJsonAsync(TransactionRegisterPath, body, cancellationToken);
         var result = await JsonHelper.ReadJsonOrNull<P24ApiResponse<RegisterTransactionData>>(response, cancellationToken);
 
         if (result?.Data is null)
