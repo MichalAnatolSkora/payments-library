@@ -65,8 +65,8 @@ public sealed class P24Provider : IPaymentProvider
         if (result?.Data is null)
         {
             return CreatePaymentResult.Fail(
-                result?.Error ?? "unknown",
-                result?.ErrorMessage ?? "Transaction registration failed.");
+                result?.Error ?? "Transaction registration failed.",
+                result?.ErrorCode ?? 0);
         }
 
         var baseUri = new Uri(_options.BaseAddress.OriginalString);
@@ -156,7 +156,9 @@ public sealed class P24Provider : IPaymentProvider
     {
         if (!long.TryParse(request.ProviderId, out var orderId))
         {
-            return ConfirmPaymentResult.Fail("invalid_provider_id", "ProviderId must be a numeric P24 orderId.");
+            return ConfirmPaymentResult.Fail(
+                "ProviderId must be a numeric P24 orderId.",
+                0);
         }
 
         var sign = CryptographyProvider.ComputeNotifySign(
@@ -178,7 +180,9 @@ public sealed class P24Provider : IPaymentProvider
 
         return result?.Error is null
             ? ConfirmPaymentResult.Ok()
-            : ConfirmPaymentResult.Fail(result.Error, result.ErrorMessage ?? "Verification failed.");
+            : ConfirmPaymentResult.Fail(
+                result.Error ?? "Verification failed.",
+                result?.ErrorCode ?? 0);
     }
 
     public async Task<RefundResult> RefundAsync(
@@ -187,12 +191,12 @@ public sealed class P24Provider : IPaymentProvider
     {
         if (!long.TryParse(request.ProviderId, out var orderId))
         {
-            return RefundResult.Fail("invalid_provider_id", "ProviderId must be a numeric P24 orderId.");
+            return RefundResult.Fail("ProviderId must be a numeric P24 orderId.", 0);
         }
 
         if (request.Amount is null)
         {
-            return RefundResult.Fail("amount_required", "P24 refunds require an explicit Amount.");
+            return RefundResult.Fail("P24 refunds require an explicit Amount.", 0);
         }
 
         var currency = request.Currency ?? "PLN";
@@ -226,7 +230,9 @@ public sealed class P24Provider : IPaymentProvider
 
         return result?.Error is null
             ? RefundResult.Ok()
-            : RefundResult.Fail(result.Error, result.ErrorMessage ?? "Refund failed.");
+            : RefundResult.Fail(
+                result.Error ?? "Refund failed.",
+                result?.ErrorCode ?? 0);
     }
 
     private static PaymentState MapState(int status) => status switch

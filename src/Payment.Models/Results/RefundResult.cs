@@ -10,6 +10,6 @@ public sealed class RefundResult
     public static RefundResult Ok(string? refundId = null) =>
         new() { Success = true, RefundId = refundId };
 
-    public static RefundResult Fail(string errorCode, string errorMessage) =>
-        new() { Success = false, ErrorCode = errorCode, ErrorMessage = errorMessage };
+    public static RefundResult Fail(string error, int errorCode) =>
+        new() { Success = false, ErrorMessage = error, ErrorCode = errorCode.ToString() };
 }

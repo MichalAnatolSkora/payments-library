@@ -8,6 +8,6 @@ public sealed class ConfirmPaymentResult
 
     public static ConfirmPaymentResult Ok() => new() { Success = true };
 
-    public static ConfirmPaymentResult Fail(string errorCode, string errorMessage) =>
-        new() { Success = false, ErrorCode = errorCode, ErrorMessage = errorMessage };
+    public static ConfirmPaymentResult Fail(string error, int errorCode) =>
+        new() { Success = false, ErrorMessage = error, ErrorCode = errorCode.ToString() };
 }
