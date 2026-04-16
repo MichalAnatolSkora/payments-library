@@ -19,6 +19,9 @@ public sealed class P24Provider : IPaymentProvider
 {
     private const string TransactionRegisterPath = "/api/v1/transaction/register";
     private const string TransactionRequestPath = "/trnRequest/{0}";
+    private const string TransactionBySessionIdPath = "/api/v1/transaction/by/sessionId";
+    private const string TransactionVerifyPath = "/api/v1/transaction/verify";
+    private const string TransactionRefundPath = "/api/v1/transaction/refund";
 
     private readonly P24Options _options;
     private readonly HttpClient _httpClient;
@@ -81,7 +84,7 @@ public sealed class P24Provider : IPaymentProvider
         CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.GetAsync(
-            $"/api/v1/transaction/by/sessionId/{Uri.EscapeDataString(sessionId)}", cancellationToken);
+            $"{TransactionBySessionIdPath}/{Uri.EscapeDataString(sessionId)}", cancellationToken);
 
         var result = await JsonHelper.ReadJsonOrNull<P24ApiResponse<TransactionStatusData>>(response, cancellationToken);
 
@@ -156,9 +159,7 @@ public sealed class P24Provider : IPaymentProvider
     {
         if (!long.TryParse(request.ProviderId, out var orderId))
         {
-            return ConfirmPaymentResult.Fail(
-                "ProviderId must be a numeric P24 orderId.",
-                0);
+            return ConfirmPaymentResult.Fail("ProviderId must be a numeric P24 orderId.", 0);
         }
 
         var sign = CryptographyProvider.ComputeNotifySign(
@@ -175,7 +176,7 @@ public sealed class P24Provider : IPaymentProvider
             Sign = sign,
         };
 
-        var response = await _httpClient.PutAsJsonAsync("/api/v1/transaction/verify", body, cancellationToken);
+        var response = await _httpClient.PutAsJsonAsync(TransactionVerifyPath, body, cancellationToken);
         var result = await JsonHelper.ReadJsonOrNull<P24ApiResponse<JsonElement>>(response, cancellationToken);
 
         return result?.Error is null
@@ -225,7 +226,7 @@ public sealed class P24Provider : IPaymentProvider
             Sign = sign,
         };
 
-        var response = await _httpClient.PostAsJsonAsync("/api/v1/transaction/refund", body, cancellationToken);
+        var response = await _httpClient.PostAsJsonAsync(TransactionRefundPath, body, cancellationToken);
         var result = await JsonHelper.ReadJsonOrNull<P24ApiResponse<JsonElement>>(response, cancellationToken);
 
         return result?.Error is null

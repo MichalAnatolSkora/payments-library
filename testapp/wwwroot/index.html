@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Payments Library — Test Console</title>
+<title>Payments Library – Test Console</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: system-ui, sans-serif; background: #0f0f1a; color: #e0e0e0; min-height: 100vh; }
@@ -205,7 +205,7 @@ button.secondary:hover { background: #1e1b4b; }
 <body>
 
 <header>
-  <h1>Payments Library — Test Console</h1>
+  <h1>Payments Library – Test Console</h1>
   <span class="badge">Przelewy24</span>
 </header>
 
@@ -217,8 +217,8 @@ button.secondary:hover { background: #1e1b4b; }
       <div class="sidebar-section-title">Session context</div>
       <div class="field"><label>Session ID</label><input id="ctx-sessionId" type="text" readonly placeholder="set after step 1" style="opacity:.7" /></div>
       <div class="field"><label>Provider Order ID</label><input id="ctx-orderId" type="text" readonly placeholder="set after payment" style="opacity:.7" /></div>
-      <div class="field"><label>Amount (gr)</label><input id="ctx-amount" type="number" readonly placeholder="—" style="opacity:.7" /></div>
-      <div class="field"><label>Currency</label><input id="ctx-currency" type="text" readonly placeholder="—" style="opacity:.7" /></div>
+      <div class="field"><label>Amount (gr)</label><input id="ctx-amount" type="number" readonly placeholder="–" style="opacity:.7" /></div>
+      <div class="field"><label>Currency</label><input id="ctx-currency" type="text" readonly placeholder="–" style="opacity:.7" /></div>
     </div>
   </aside>
 
@@ -270,9 +270,9 @@ button.secondary:hover { background: #1e1b4b; }
 
     </div>
 
-    <!-- STEP 1 — CREATE PAYMENT -->
+    <!-- STEP 1 – CREATE PAYMENT -->
     <div class="panel visible" id="panel-1">
-      <div class="panel-title">Step 1 — Create Payment</div>
+      <div class="panel-title">Step 1 – Create Payment</div>
       <div class="panel-sub">Register a new transaction with P24. You'll get a redirect URL to send the customer to.</div>
       <div class="form-grid">
         <div><label>Session ID</label><input id="cp-sessionId" type="text" placeholder="auto-generated" /></div>
@@ -280,11 +280,11 @@ button.secondary:hover { background: #1e1b4b; }
         <div><label>Currency</label><input id="cp-currency" type="text" value="PLN" /></div>
         <div><label>Description</label><input id="cp-description" type="text" value="Test payment" /></div>
         <div><label>Customer Email</label><input id="cp-email" type="text" value="test@example.com" /></div>
-        <div><label>Customer Name</label><input id="cp-name" type="text" value="Jan Testowy" /></div>
+        <div><label>Customer Name</label><input id="cp-name" type="text" value="Jan Kowalski" /></div>
         <div><label>Country</label><input id="cp-country" type="text" value="PL" /></div>
         <div><label>Language</label><input id="cp-language" type="text" value="pl" /></div>
         <div class="full"><label>Return URL</label><input id="cp-returnUrl" type="text" value="https://example.com/return" /></div>
-        <div class="full"><label>Notify URL (IPN)</label><input id="cp-notifyUrl" type="text" value="" placeholder="optional — your webhook endpoint" /></div>
+        <div class="full"><label>Notify URL (IPN)</label><input id="cp-notifyUrl" type="text" value="" placeholder="optional – your webhook endpoint" /></div>
       </div>
       <div class="btn-row">
         <button class="run" onclick="createPayment()">▶ Create Payment</button>
@@ -294,7 +294,7 @@ button.secondary:hover { background: #1e1b4b; }
       <div class="result idle" id="cp-raw-result" style="display:none;margin-top:8px"></div>
       <div class="pay-link" id="pay-link">
         <div style="flex:1">
-          <div style="font-size:.72rem;color:#4ade80;margin-bottom:4px">✓ Payment registered — open this URL to pay:</div>
+          <div style="font-size:.72rem;color:#4ade80;margin-bottom:4px">✓ Payment registered – open this URL to pay:</div>
           <a id="pay-href" href="#" target="_blank"></a>
         </div>
         <button class="open-btn" onclick="document.getElementById('pay-href').click()">Open →</button>
@@ -302,10 +302,10 @@ button.secondary:hover { background: #1e1b4b; }
       <div class="result idle" id="cp-result">// result will appear here</div>
     </div>
 
-    <!-- STEP 2 — CUSTOMER PAYS (external) -->
+    <!-- STEP 2 – CUSTOMER PAYS (external) -->
     <div class="panel" id="panel-2">
-      <div class="panel-title">Step 2 — Customer Pays</div>
-      <div class="panel-sub">This step happens outside your system — on P24's hosted payment page.</div>
+      <div class="panel-title">Step 2 – Customer Pays</div>
+      <div class="panel-sub">This step happens outside your system – on P24's hosted payment page.</div>
       <div class="ext-step">
         <strong>Open the payment URL in your browser</strong>
         The URL was shown in Step 1. The customer selects a payment method and completes the payment on P24's page.<br><br>
@@ -321,13 +321,13 @@ button.secondary:hover { background: #1e1b4b; }
         <button class="open-btn" onclick="document.getElementById('pay-href-2').click()">Open →</button>
       </div>
       <div style="margin-top:20px" class="btn-row">
-        <button class="secondary" onclick="goStep(3)">I've paid — continue to Step 3 →</button>
+        <button class="secondary" onclick="goStep(3)">I've paid – continue to Step 3 →</button>
       </div>
     </div>
 
-    <!-- STEP 3 — CHECK STATUS -->
+    <!-- STEP 3 – CHECK STATUS -->
     <div class="panel" id="panel-3">
-      <div class="panel-title">Step 3 — Check Payment Status</div>
+      <div class="panel-title">Step 3 – Check Payment Status</div>
       <div class="panel-sub">Poll the status of your transaction by session ID.</div>
       <div id="ps-hint" class="propagated-hint visible">
         <span>⬡</span> Session ID propagated from Step 1
@@ -344,9 +344,9 @@ button.secondary:hover { background: #1e1b4b; }
       <div class="result idle" id="ps-raw-result" style="display:none;margin-top:8px"></div>
     </div>
 
-    <!-- STEP 4 — VALIDATE NOTIFICATION -->
+    <!-- STEP 4 – VALIDATE NOTIFICATION -->
     <div class="panel" id="panel-4">
-      <div class="panel-title">Step 4 — Validate IPN Notification</div>
+      <div class="panel-title">Step 4 – Validate IPN Notification</div>
       <div class="panel-sub">Verify the SHA-384 signature from P24's webhook notification. Fill in values from the POST body P24 sent to your Notify URL.</div>
       <div id="vn-hint" class="propagated-hint">
         <span>⬡</span> Session ID, amount and currency propagated from Step 1
@@ -368,9 +368,9 @@ button.secondary:hover { background: #1e1b4b; }
       <div class="result idle" id="vn-result">// result will appear here</div>
     </div>
 
-    <!-- STEP 5 — CONFIRM -->
+    <!-- STEP 5 – CONFIRM -->
     <div class="panel" id="panel-5">
-      <div class="panel-title">Step 5 — Confirm Payment</div>
+      <div class="panel-title">Step 5 – Confirm Payment</div>
       <div class="panel-sub">Call the P24 verify endpoint to settle the transaction. Must be called after a validated IPN notification.</div>
       <div id="conf-hint" class="propagated-hint">
         <span>⬡</span> Values propagated from previous steps
@@ -390,9 +390,9 @@ button.secondary:hover { background: #1e1b4b; }
       <div class="result idle" id="conf-result">// result will appear here</div>
     </div>
 
-    <!-- STEP 6 — REFUND -->
+    <!-- STEP 6 – REFUND -->
     <div class="panel" id="panel-6">
-      <div class="panel-title">Step 6 — Refund <span style="font-size:.8rem;font-weight:400;color:#666">(optional)</span></div>
+      <div class="panel-title">Step 6 – Refund <span style="font-size:.8rem;font-weight:400;color:#666">(optional)</span></div>
       <div class="panel-sub">Issue a full or partial refund for a completed payment.</div>
       <div id="ref-hint" class="propagated-hint">
         <span>⬡</span> Values propagated from previous steps
@@ -424,7 +424,7 @@ button.secondary:hover { background: #1e1b4b; }
   </div>
   <div class="ipn-list" id="ipn-list">
     <div class="tunnel-hint">
-      P24 needs a public URL to send IPN — use a tunnel locally:
+      P24 needs a public URL to send IPN – use a tunnel locally:
       <code>ngrok http 5000</code> or <code>lt --port 5000</code> (localtunnel), then set the Notify URL to <code>https://&lt;tunnel&gt;/api/notify</code>
     </div>
     <div id="ipn-items"><span style="font-size:.78rem;color:#444">No notifications received yet.</span></div>
@@ -564,11 +564,11 @@ async function callApi(method, url, body) {
   if (body !== undefined) opts.body = JSON.stringify(body);
   const res = await fetch(url, opts);
   const text = await res.text();
-  if (!text) throw new Error(`HTTP ${res.status} ${res.statusText} — empty response body`);
+  if (!text) throw new Error(`HTTP ${res.status} ${res.statusText} – empty response body`);
   try {
     return JSON.parse(text);
   } catch {
-    throw new Error(`HTTP ${res.status} — non-JSON response: ${text.slice(0, 300)}`);
+    throw new Error(`HTTP ${res.status} – non-JSON response: ${text.slice(0, 300)}`);
   }
 }
 
@@ -594,7 +594,7 @@ function updateCtxDisplay() {
   document.getElementById('ctx-currency').value  = ctx.currency  || '';
 }
 
-// ── step 1 — create payment ──────────────────────────────
+// ── step 1 – create payment ──────────────────────────────
 async function createPayment() {
   const sessionId = document.getElementById('cp-sessionId').value
     || 'test-' + crypto.randomUUID().replace(/-/g,'').slice(0, 16);
@@ -660,7 +660,7 @@ async function createPayment() {
   }
 }
 
-// ── step 3 — payment status ──────────────────────────────
+// ── step 3 – payment status ──────────────────────────────
 async function paymentStatus() {
   const sessionId = document.getElementById('ps-sessionId').value;
   try {
@@ -705,7 +705,7 @@ async function paymentStatus() {
   }
 }
 
-// ── step 1 — raw create-payment response (debug) ────────
+// ── step 1 – raw create-payment response (debug) ────────
 async function createPaymentRaw() {
   const el = document.getElementById('cp-raw-result');
   el.style.display = 'block';
@@ -734,7 +734,7 @@ async function createPaymentRaw() {
   }
 }
 
-// ── step 5 — raw confirm-payment response (debug) ───────
+// ── step 5 – raw confirm-payment response (debug) ───────
 async function confirmPaymentRaw() {
   const el = document.getElementById('conf-raw-result');
   el.style.display = 'block';
@@ -755,7 +755,7 @@ async function confirmPaymentRaw() {
   }
 }
 
-// ── step 3 — raw p24 response (debug) ───────────────────
+// ── step 3 – raw p24 response (debug) ───────────────────
 async function paymentStatusRaw() {
   const sessionId = document.getElementById('ps-sessionId').value;
   const el = document.getElementById('ps-raw-result');
@@ -772,7 +772,7 @@ async function paymentStatusRaw() {
   }
 }
 
-// ── step 6 — raw refund response (debug) ────────────────
+// ── step 6 – raw refund response (debug) ────────────────
 async function refundRaw() {
   const amtVal = document.getElementById('ref-amount').value;
   const el = document.getElementById('ref-raw-result');
@@ -795,7 +795,7 @@ async function refundRaw() {
   }
 }
 
-// ── step 4 — validate notification ──────────────────────
+// ── step 4 – validate notification ──────────────────────
 async function validateNotification() {
   try {
     const data = await callApi('POST', '/api/validate-notification', {
@@ -820,7 +820,7 @@ async function validateNotification() {
   }
 }
 
-// ── step 5 — confirm payment ─────────────────────────────
+// ── step 5 – confirm payment ─────────────────────────────
 async function confirmPayment() {
   try {
     const data = await callApi('POST', '/api/confirm-payment', {
@@ -836,7 +836,7 @@ async function confirmPayment() {
   }
 }
 
-// ── step 6 — refund ──────────────────────────────────────
+// ── step 6 – refund ──────────────────────────────────────
 async function refund() {
   const amtVal = document.getElementById('ref-amount').value;
   try {
