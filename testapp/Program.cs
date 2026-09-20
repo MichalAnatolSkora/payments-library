@@ -19,6 +19,7 @@ builder.Services
     });
 builder.Services.AddSingleton<NotificationStore>();
 builder.Services.AddP24(builder.Configuration);
+builder.Services.AddSingleton<IP24ProviderFactory, P24ProviderFactory>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {

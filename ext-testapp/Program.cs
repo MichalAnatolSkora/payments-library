@@ -2,9 +2,10 @@ using Clerk.Net.AspNetCore.Security;
 using ExtTestApp.Handlers;
 using ExtTestApp.Services;
 using Microsoft.Extensions.FileProviders;
-using Payment.Core.P24.Abstractions;
+using Payment.Core.P24.Models;
 using Payment.Core.P24.Options;
 using Payment.Core.P24.Providers;
+using Payment.Models.Abstractions;
 using Payment.Models.Requests;
 using Swashbuckle.AspNetCore.Filters;
 
@@ -148,17 +149,17 @@ if (app.Environment.IsDevelopment())
 app.MapPost("/api/notify", async (HttpContext ctx, IPaymentProvider provider, NotificationStore store, ILogger<Program> logger) =>
 {
     // P24 REST API sends JSON, legacy API sends form-urlencoded — handle both
-    InstantPaymentNotificationRequest payload;
+    P24Notification payload;
     var contentType = ctx.Request.ContentType ?? "";
 
     if (contentType.Contains("application/json"))
     {
-        payload = (await ctx.Request.ReadFromJsonAsync<InstantPaymentNotificationRequest>())!;
+        payload = (await ctx.Request.ReadFromJsonAsync<P24Notification>())!;
     }
     else
     {
         var form = await ctx.Request.ReadFormAsync();
-        payload = new InstantPaymentNotificationRequest
+        payload = new P24Notification
         {
             MerchantId = int.Parse(form["merchantId"].ToString()),
             PosId = int.Parse(form["posId"].ToString()),
@@ -175,24 +176,7 @@ app.MapPost("/api/notify", async (HttpContext ctx, IPaymentProvider provider, No
 
     logger.LogInformation("Received P24 notification for SessionId: {SessionId}", payload.SessionId);
 
-    var notification = new PaymentNotification
-    {
-        SessionId = payload.SessionId,
-        ProviderId = payload.OrderId.ToString(),
-        Amount = payload.Amount,
-        Currency = payload.Currency,
-        Sign = payload.Sign,
-        RawFields = new Dictionary<string, string>
-        {
-            ["merchantId"] = payload.MerchantId.ToString(),
-            ["posId"] = payload.PosId.ToString(),
-            ["originAmount"] = payload.OriginAmount.ToString(),
-            ["methodId"] = payload.MethodId.ToString(),
-            ["statement"] = payload.Statement ?? "",
-        },
-    };
-
-    var valid = provider.ValidateNotification(notification);
+    var valid = provider.ValidateNotification(payload.ToPaymentNotification());
     logger.LogInformation("P24 notification validation: {Valid} (SessionId: {SessionId})", valid, payload.SessionId);
     store.Add(payload, valid);
 

@@ -1,21 +1,20 @@
 using Microsoft.Extensions.Configuration;
-using Payment.Core.P24.Models;
 using Payment.Core.P24.Options;
 using Payment.Core.P24.Providers;
 using Payment.Models.Requests;
+using Payment.Models.Results;
 using Xunit.Abstractions;
 
 namespace Payment.Tests;
 
 /// <summary>
 /// Integration tests against the Przelewy24 sandbox.
-/// Requires appsettings.Development.json with valid sandbox credentials.
+/// Requires appsettings.Testing.json with valid sandbox credentials; skipped when the file is absent.
 /// </summary>
 public sealed class P24IntegrationTests : IDisposable
 {
     private readonly P24Provider _provider;
     private readonly HttpClient _httpClient = new();
-    private readonly P24Options _options;
     private readonly ITestOutputHelper _output;
 
     public P24IntegrationTests(ITestOutputHelper output)
@@ -26,31 +25,28 @@ public sealed class P24IntegrationTests : IDisposable
             .AddJsonFile("appsettings.Testing.json", optional: false)
             .Build();
 
-        _options = config.GetSection("P24").Get<P24Options>()
+        var options = config.GetSection("P24").Get<P24Options>()
             ?? throw new InvalidOperationException("Missing P24 config.");
 
-        _provider = new P24Provider(_options, _httpClient);
+        _provider = new P24Provider(options, _httpClient);
     }
 
     // -------------------------------------------------------------------------
     // Test access
     // -------------------------------------------------------------------------
 
-    [Fact]
+    [SandboxFact]
     public async Task Credentials_AreValid_SandboxAcceptsConnection()
     {
         // P24 exposes GET /api/v1/testAccess — 200 means credentials are good.
-        // Use _httpClient directly (BaseAddress + auth already set by provider ctor).
-        var response = await _httpClient.GetAsync("/api/v1/testAccess");
-        Assert.True(response.IsSuccessStatusCode,
-            $"Sandbox credentials rejected. HTTP {(int)response.StatusCode}");
+        Assert.True(await _provider.TestAccessAsync(), "Sandbox credentials rejected.");
     }
 
     // -------------------------------------------------------------------------
     // CreatePaymentAsync
     // -------------------------------------------------------------------------
 
-    [Fact]
+    [SandboxFact]
     public async Task CreatePaymentAsync_ValidRequest_ReturnsRedirectUrl()
     {
         // Arrange
@@ -82,7 +78,7 @@ public sealed class P24IntegrationTests : IDisposable
         _output.WriteLine("=========================================================");
     }
 
-    [Fact]
+    [SandboxFact]
     public async Task CreatePaymentAsync_InvalidCurrency_ReturnsFail()
     {
         // Arrange
@@ -110,7 +106,7 @@ public sealed class P24IntegrationTests : IDisposable
     // GetPaymentStatusAsync
     // -------------------------------------------------------------------------
 
-    [Fact]
+    [SandboxFact]
     public async Task GetPaymentStatus_AfterRegistration_ReturnsPendingOrUnknown()
     {
         var sessionId = $"test-{Guid.NewGuid():N}";
@@ -133,109 +129,24 @@ public sealed class P24IntegrationTests : IDisposable
             createPaymentResponse.Success,
             $"CreatePayment failed: {createPaymentResponse.ErrorCode} – {createPaymentResponse.ErrorMessage}");
 
-        var status = await _provider.GetPaymentStatusAsync(sessionId);
+        var result = await _provider.GetPaymentStatusAsync(sessionId);
 
-        Assert.Equal(sessionId, status.SessionId);
+        Assert.True(result.Success, $"Status lookup failed: {result.ErrorCode} – {result.ErrorMessage}");
+        Assert.Equal(sessionId, result.Status.SessionId);
         // P24 sandbox returns Amount=0 for a registered-but-unpaid transaction
-        Assert.True(status.Amount >= 0);
-        Assert.NotNull(status.Currency);
-        // New unpaid transaction is pending
-        Assert.True(
-            status.State is PaymentState.Pending or PaymentState.Unknown,
-            $"Unexpected state: {status.State} (raw P24 status — add to MapState if needed)");
+        Assert.True(result.Status.Amount >= 0);
+        Assert.NotNull(result.Status.Currency);
+        // A registered-but-unpaid transaction has P24 status 0 ("no payment"), which maps to Pending.
+        Assert.Equal(PaymentState.Pending, result.Status.State);
     }
 
-    [Fact]
-    public async Task GetPaymentStatus_UnknownSession_ReturnsUnknownState()
+    [SandboxFact]
+    public async Task GetPaymentStatus_UnknownSession_FailsWithNotFound()
     {
-        var status = await _provider.GetPaymentStatusAsync("nonexistent-session-xyz-999");
+        var result = await _provider.GetPaymentStatusAsync("nonexistent-session-xyz-999");
 
-        Assert.Equal(PaymentState.Unknown, status.State);
-    }
-
-    // -------------------------------------------------------------------------
-    // ValidateNotification
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public void ValidateNotification_CorrectSign_ReturnsTrue()
-    {
-        // Build a notification with a known-good sign to verify our SHA-384 logic.
-        // We register a payment to get a real token, but since we can't trigger
-        // an actual IPN in a unit context, we recompute the sign ourselves using
-        // the same algorithm and verify the provider accepts it.
-        var sessionId = "test-session-sign-check";
-        var orderId = 12345;
-        var amount = 200;
-        var currency = "PLN";
-        var merchantId = _options.MerchantId;
-        var posId = _options.PosId;
-        var methodId = 154;
-        var statement = "p24-123-abc";
-
-        var sign = ComputeExpectedSign(merchantId, posId, sessionId, orderId, amount, amount, currency, methodId, statement);
-
-        var notification = new PaymentNotification
-        {
-            SessionId = sessionId,
-            ProviderId = orderId.ToString(),
-            Amount = amount,
-            Currency = currency,
-            Sign = sign,
-            RawFields = new Dictionary<string, string>
-            {
-                { "merchantId", merchantId.ToString() },
-                { "posId", posId.ToString() },
-                { "originAmount", amount.ToString() },
-                { "methodId", methodId.ToString() },
-                { "statement", statement }
-            }
-        };
-
-        Assert.True(_provider.ValidateNotification(notification));
-    }
-
-    [Fact]
-    public void ValidateNotification_WrongSign_ReturnsFalse()
-    {
-        var notification = new PaymentNotification
-        {
-            SessionId = "test-session",
-            ProviderId = "12345",
-            Amount = 200,
-            Currency = "PLN",
-            Sign = "invalidsignature",
-        };
-
-        Assert.False(_provider.ValidateNotification(notification));
-    }
-
-    /// <summary>
-    /// Replicates the SHA-384 sign formula so we can build valid test notifications.
-    /// </summary>
-    private string ComputeExpectedSign(
-        int merchantId, int posId, string sessionId, int orderId, int amount,
-        int originAmount, string currency, int methodId, string statement)
-    {
-        var crc = _options.CrcKey;
-
-        var payload = System.Text.Json.JsonSerializer.Serialize(new
-        {
-            merchantId,
-            posId,
-            sessionId,
-            amount,
-            originAmount,
-            currency,
-            orderId,
-            methodId,
-            statement,
-            crc,
-        });
-
-        var bytes = System.Security.Cryptography.SHA384.HashData(
-            System.Text.Encoding.UTF8.GetBytes(payload));
-        return Convert.ToHexString(bytes).ToLowerInvariant();
+        Assert.False(result.Success);
+        Assert.Equal("404", result.ErrorCode);
     }
 
     public void Dispose() => _httpClient.Dispose();

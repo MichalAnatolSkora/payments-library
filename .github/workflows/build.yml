@@ -20,8 +20,15 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.x
       - name: Restore
         run: dotnet restore ./Payment.slnx
       - name: Build
         run: dotnet build ./Payment.slnx --configuration Release --no-restore
+      - name: Test
+        # Integration tests skip themselves when appsettings.Testing.json is absent.
+        run: dotnet test ./Payment.slnx --configuration Release --no-build
+      - name: Pack
+        run: |
+          dotnet pack ./src/Payment.Models/Payment.Models.csproj --configuration Release --no-build --output ./artifacts
+          dotnet pack ./src/Payment.Core.P24/Payment.Core.P24.csproj --configuration Release --no-build --output ./artifacts

@@ -1,2 +1,9 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>PaymentsLibrary.Models</PackageId>
+    <Description>Provider-agnostic abstractions, requests and results for the PaymentsLibrary payment providers.</Description>
+    <PackageTags>payments;dotnet</PackageTags>
+  </PropertyGroup>
+
 </Project>

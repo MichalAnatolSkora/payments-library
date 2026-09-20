@@ -2,6 +2,10 @@ using System.Text.Json.Serialization;
 
 namespace Payment.Core.P24.Models;
 
+/// <summary>
+/// One entry of the <c>refunds</c> array sent to /transaction/refund.
+/// Refunds are always issued in the original transaction currency, so no currency field exists.
+/// </summary>
 internal sealed class RefundItem
 {
     [JsonPropertyName("orderId")]
@@ -13,9 +17,9 @@ internal sealed class RefundItem
     [JsonPropertyName("amount")]
     public int Amount { get; init; }
 
-    [JsonPropertyName("currency")]
-    public required string Currency { get; init; }
-
+    /// <summary>
+    /// Shown in the bank transfer title. P24 limits it to 35 characters.
+    /// </summary>
     [JsonPropertyName("description")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Description { get; init; }

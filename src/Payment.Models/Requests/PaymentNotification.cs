@@ -1,3 +1,5 @@
+using Payment.Models.Abstractions;
+
 namespace Payment.Models.Requests;
 
 /// <summary>
@@ -5,6 +7,8 @@ namespace Payment.Models.Requests;
 /// Populate this from the raw HTTP request body before passing to
 /// <see cref="IPaymentProvider.ValidateNotification"/> and
 /// <see cref="IPaymentProvider.ConfirmPaymentAsync"/>.
+/// Providers with a typed notification model usually offer a conversion helper
+/// (for Przelewy24: <c>P24Notification.ToPaymentNotification()</c>).
 /// </summary>
 public sealed class PaymentNotification
 {
@@ -19,6 +23,9 @@ public sealed class PaymentNotification
     /// <summary>Raw provider signature string for integrity verification.</summary>
     public required string Sign { get; init; }
 
-    /// <summary>Full raw payload — kept for providers that need the original bytes for HMAC.</summary>
+    /// <summary>
+    /// Every other field the provider includes in its signature, keyed by the provider's field name.
+    /// A provider rejects the notification when a signed field is missing.
+    /// </summary>
     public IReadOnlyDictionary<string, string> RawFields { get; init; } = new Dictionary<string, string>();
 }

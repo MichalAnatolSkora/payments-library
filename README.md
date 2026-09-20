@@ -9,18 +9,20 @@ A lightweight .NET library for integrating with payment providers through a unif
 ## Quick Start
 
 ```csharp
-using Payment.Infrastructure.P24.Abstractions;
-using Payment.Infrastructure.P24.Providers.Przelewy24;
+using Payment.Core.P24.Models;
+using Payment.Core.P24.Options;
+using Payment.Core.P24.Providers;
+using Payment.Models.Abstractions;
 using Payment.Models.Requests;
 
-IPaymentProvider provider = new Przelewy24Provider(new Przelewy24Options
+IPaymentProvider provider = new P24Provider(new P24Options
 {
     MerchantId = 12345,
     PosId      = 12345,
     ApiKey     = "...",   // "Klucz do raportów" from the P24 panel
     CrcKey     = "...",   // CRC key from the P24 panel
-    Sandbox    = true,
-});
+    IsSandbox  = true,
+}, new HttpClient());
 
 // 1. Register a transaction — redirect the customer to result.RedirectUrl
 var result = await provider.CreatePaymentAsync(new CreatePaymentRequest
@@ -33,50 +35,66 @@ var result = await provider.CreatePaymentAsync(new CreatePaymentRequest
     ReturnUrl     = "https://yourshop.pl/payment/return",
     NotifyUrl     = "https://yourshop.pl/payment/notify",
     Country       = "PL",
+    Language      = "pl",
 });
 
 // 2. On IPN webhook — validate then confirm
-var notification = new PaymentNotification
-{
-    SessionId  = Request.Form["sessionId"]!,
-    ProviderId = Request.Form["orderId"]!,
-    Amount     = int.Parse(Request.Form["amount"]!),
-    Currency   = Request.Form["currency"]!,
-    Sign       = Request.Form["sign"]!,
-    RawFields  = Request.Form.ToDictionary(k => k.Key, v => v.Value.ToString()),
-};
+//    P24 posts JSON; bind it to P24Notification (or build one from form fields).
+var notification = await Request.ReadFromJsonAsync<P24Notification>();
 
-if (provider.ValidateNotification(notification))
+if (notification is not null && provider.ValidateNotification(notification.ToPaymentNotification()))
 {
-    await provider.ConfirmPaymentAsync(new ConfirmPaymentRequest
+    var confirm = await provider.ConfirmPaymentAsync(new ConfirmPaymentRequest
     {
         SessionId  = notification.SessionId,
-        ProviderId = notification.ProviderId,
+        ProviderId = notification.OrderId.ToString(),
         Amount     = notification.Amount,
         Currency   = notification.Currency,
     });
+    // confirm.Success / confirm.ErrorMessage
 }
+
+// 3. Status and refunds
+var status = await provider.GetPaymentStatusAsync("order-42");
+if (status.Success) Console.WriteLine(status.Status.State);
+
+var refund = await provider.RefundAsync(new RefundRequest
+{
+    SessionId  = "order-42",
+    ProviderId = "<orderId from IPN>",
+    Amount     = null,            // null = full refund
+    RequestId  = "refund-42-1",   // idempotency key, optional
+});
 ```
 
 ## DI Registration
 
 ```csharp
 // Program.cs
-builder.Services.AddPrzelewy24(builder.Configuration);
+builder.Services.AddP24(builder.Configuration);
 ```
 
 ```json
 // appsettings.json
 {
-  "Przelewy24": {
+  "P24": {
     "MerchantId": 0,
     "PosId": 0,
     "ApiKey": "",
     "CrcKey": "",
-    "Sandbox": false
+    "IsSandbox": true
   }
 }
 ```
+
+Notes:
+
+- `IsSandbox` defaults to `true`; set it to `false` explicitly to go live.
+- `BaseAddress` (optional) overrides the P24 origin, e.g. `"http://localhost:8089/"` for a mock server in tests.
+- Options are validated at startup; a missing key fails fast with a message naming the field.
+- If `ILogger` is registered, the provider logs failed calls and rejected notifications at `Warning`.
+- `P24Provider.TestAccessAsync()` calls `GET /api/v1/testAccess` to check the credentials.
+- Transport failures and timeouts come back as failed results, not exceptions; only caller cancellation throws.
 
 ## API
 

@@ -1,9 +1,9 @@
-namespace Payment.Core.P24.Models;
+namespace Payment.Models.Results;
 
 public enum PaymentState
 {
     /// <summary>
-    /// Status could not be determined (e.g. session not found).
+    /// Provider reported a status this library does not recognise.
     /// </summary>
     Unknown,
 
@@ -18,7 +18,8 @@ public enum PaymentState
     Processing,
 
     /// <summary>
-    /// Payment successfully confirmed by the provider.</summary>
+    /// Payment successfully confirmed by the provider.
+    /// </summary>
     Completed,
 
     /// <summary>

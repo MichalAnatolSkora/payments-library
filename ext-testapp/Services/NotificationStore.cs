@@ -1,4 +1,4 @@
-using Payment.Models.Requests;
+using Payment.Core.P24.Models;
 
 namespace ExtTestApp.Services;
 
@@ -17,7 +17,7 @@ public class NotificationStore
     private readonly List<ReceivedNotification> _items = [];
     private readonly Lock _lock = new();
 
-    public void Add(InstantPaymentNotificationRequest payload, bool valid)
+    public void Add(P24Notification payload, bool valid)
     {
         var entry = new ReceivedNotification(
             ReceivedAt: DateTime.UtcNow,

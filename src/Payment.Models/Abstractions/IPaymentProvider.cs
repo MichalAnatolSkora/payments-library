@@ -1,11 +1,12 @@
-using Payment.Core.P24.Models;
 using Payment.Models.Requests;
 using Payment.Models.Results;
 
-namespace Payment.Core.P24.Abstractions;
+namespace Payment.Models.Abstractions;
 
 /// <summary>
 /// Universal interface that every payment provider must implement.
+/// Provider-specific failures (API errors, transport errors, timeouts) are reported
+/// through the returned result objects; only caller-initiated cancellation throws.
 /// </summary>
 public interface IPaymentProvider
 {
@@ -14,18 +15,18 @@ public interface IPaymentProvider
     /// </summary>
     Task<CreatePaymentResult> CreatePaymentAsync(
         CreatePaymentRequest request,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Retrieves the current status of a previously created payment.
     /// </summary>
-    Task<PaymentStatus> GetPaymentStatusAsync(
+    Task<PaymentStatusResult> GetPaymentStatusAsync(
         string sessionId,
         CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Validates the signature / integrity of an inbound IPN notification.
-    /// Returns true when the notification is authentic.
+    /// Returns true only when every field the provider signs is present and the signature matches.
     /// </summary>
     bool ValidateNotification(PaymentNotification notification);
 

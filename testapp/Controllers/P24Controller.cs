@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using Payment.Core.P24.Abstractions;
+using Payment.Core.P24.Models;
 using Payment.Models.Requests;
 using Payment.Sample.Api.Services;
 
@@ -100,30 +100,13 @@ public class P24Controller : ControllerBase
     }
 
     [HttpPost("notify")]
-    public IActionResult Notify([FromBody] InstantPaymentNotificationRequest payload)
+    public IActionResult Notify([FromBody] P24Notification payload)
     {
         _logger.LogInformation("Received P24 notification for SessionId: {SessionId}", payload.SessionId);
 
         var provider = _providerFactory.Create();
 
-        var notification = new PaymentNotification
-        {
-            SessionId = payload.SessionId,
-            ProviderId = payload.OrderId.ToString(),
-            Amount = payload.Amount,
-            Currency = payload.Currency,
-            Sign = payload.Sign,
-            RawFields = new Dictionary<string, string>
-            {
-                ["merchantId"] = payload.MerchantId.ToString(),
-                ["posId"] = payload.PosId.ToString(),
-                ["originAmount"] = payload.OriginAmount.ToString(),
-                ["methodId"] = payload.MethodId.ToString(),
-                ["statement"] = payload.Statement ?? string.Empty,
-            },
-        };
-
-        var valid = provider.ValidateNotification(notification);
+        var valid = provider.ValidateNotification(payload);
         _logger.LogInformation("P24 notification validation result: {Valid} (SessionId: {SessionId})", valid, payload.SessionId);
 
         _store.Add(payload, valid);

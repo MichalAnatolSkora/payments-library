@@ -2,39 +2,44 @@ namespace Payment.Core.P24.Options;
 
 public sealed class P24Options
 {
+    public static readonly Uri SandboxBaseAddress = new("https://sandbox.przelewy24.pl/");
+    public static readonly Uri ProductionBaseAddress = new("https://secure.przelewy24.pl/");
+
+    private Uri? _baseAddress;
+
     /// <summary>
-    /// Gets a merchant identification number.
+    /// Merchant identification number.
     /// </summary>
     public required int MerchantId { get; init; }
 
     /// <summary>
-    /// Gets a shop identification number (defaults to merchant ID).
+    /// Shop identification number (defaults to merchant ID in the P24 panel).
     /// </summary>
     public required int PosId { get; init; }
 
     /// <summary>
-    /// Gets an API key.
+    /// API key ("Klucz do raportów" in the P24 panel). Used for HTTP Basic auth together with <see cref="PosId"/>.
     /// </summary>
     public required string ApiKey { get; init; }
 
     /// <summary>
-    /// Gets a cyclic redundancy check.
+    /// CRC key from the P24 panel. Used to sign requests and verify notifications.
     /// </summary>
     public required string CrcKey { get; init; }
 
     /// <summary>
-    /// Gets a value indicating whether the environment is a sandbox.
+    /// Targets the P24 sandbox. Defaults to true so that an incomplete configuration
+    /// never reaches production by accident; set to false explicitly to go live.
     /// </summary>
-    public bool IsSandbox { get; init; } = false;
+    public bool IsSandbox { get; init; } = true;
 
+    /// <summary>
+    /// P24 API origin. Derived from <see cref="IsSandbox"/> unless set explicitly,
+    /// e.g. to point at a local mock server in tests.
+    /// </summary>
     public Uri BaseAddress
     {
-        get
-        {
-            var uri = IsSandbox
-                ? "https://sandbox.przelewy24.pl"
-                : "https://secure.przelewy24.pl";
-            return new Uri(uri);
-        }
+        get => _baseAddress ?? (IsSandbox ? SandboxBaseAddress : ProductionBaseAddress);
+        init => _baseAddress = value;
     }
 }

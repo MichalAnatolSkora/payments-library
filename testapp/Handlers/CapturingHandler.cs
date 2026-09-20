@@ -1,8 +1,12 @@
-using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
 
-namespace Payment.Core.P24.Handlers;
+namespace Payment.Sample.Api.Handlers;
 
+/// <summary>
+/// Debug-only handler that records the last request/response pair. The Authorization
+/// header is redacted so captured output never exposes the API key.
+/// </summary>
 public sealed class CapturingHandler : DelegatingHandler
 {
     private string _reqMethod = string.Empty;
@@ -45,6 +49,7 @@ public sealed class CapturingHandler : DelegatingHandler
         Response = new { StatusCode = _statusCode, Headers = _resHeaders, Body = _resBody },
     };
 
-    private static string FormatHeaders(System.Net.Http.Headers.HttpHeaders headers)
-        => string.Join("\n", headers.Select(h => $"{h.Key}: {string.Join(", ", h.Value)}"));
+    private static string FormatHeaders(HttpHeaders headers)
+        => string.Join("\n", headers.Select(h =>
+            $"{h.Key}: {(h.Key.Equals("Authorization", StringComparison.OrdinalIgnoreCase) ? "[redacted]" : string.Join(", ", h.Value))}"));
 }
