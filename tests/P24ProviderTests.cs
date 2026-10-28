@@ -148,6 +148,20 @@ public sealed class P24ProviderTests
     }
 
     [Fact]
+    public async Task HistoryFailure_LogsWarning()
+    {
+        var logger = new ListLogger();
+        var (provider, _) = Create((_, _) => StubHttpMessageHandler.Json(
+            HttpStatusCode.Unauthorized, """{"error":"Incorrect authentication","code":401}"""), logger);
+
+        await provider.GetPaymentHistoryAsync(History);
+
+        var entry = Assert.Single(logger.Entries, e => e.Level == LogLevel.Warning);
+        Assert.Contains("history", entry.Message);
+        Assert.Contains("Incorrect authentication", entry.Message);
+    }
+
+    [Fact]
     public void RejectedNotification_LogsWarning()
     {
         var logger = new ListLogger();
@@ -709,23 +723,30 @@ public sealed class P24ProviderTests
     };
 
     private const string HistoryDetails =
-        """{"ordrId":987654,"sessionId":"order-1","status":2,"date":"2026-07-15 12:30:00","dateOfTransaction":"2026-07-15 12:31:00","paymentMethod":154,"fee":20}""";
+        """{"ordrId":987654,"sessionId":"order-1","status":2,"date":"2026-10-15 12:30:00","dateOfTransaction":"2026-10-15 12:31:00","paymentMethod":154,"fee":20}""";
 
     /// <summary>One transaction per page, shaped like the report/history schema in the P24 spec.</summary>
     private static string HistoryJson(string details = HistoryDetails, string token = "next-abc", int pageCount = 2) =>
         $$"""{"data":[{"type":"transaction","amount":1000,"currency":"PLN","details":[{{details}}]}],"token":"{{token}}","responseCode":0,"pageInformation":[{"recordsOnPage":1,"recordsAll":{{pageCount}},"pageCount":{{pageCount}}}]}""";
 
-    [Fact]
-    public async Task GetPaymentHistory_FirstPage_QueriesTransactionsInRange()
+    [Theory]
+    [InlineData("2026-10-01", "2026-10-31", "dateFrom=20261001&dateTo=20261031")] // 31 days, the most P24 accepts
+    [InlineData("2026-10-15", "2026-10-15", "dateFrom=20261015&dateTo=20261015")] // a single day
+    public async Task GetPaymentHistory_FirstPage_QueriesTransactionsInRange(string from, string to, string expectedQuery)
     {
         var (provider, handler) = Create((_, _) => StubHttpMessageHandler.Json(HttpStatusCode.OK, HistoryJson()));
 
-        await provider.GetPaymentHistoryAsync(History);
+        var result = await provider.GetPaymentHistoryAsync(new PaymentHistoryRequest
+        {
+            From = DateOnly.Parse(from, CultureInfo.InvariantCulture),
+            To = DateOnly.Parse(to, CultureInfo.InvariantCulture),
+        });
 
+        Assert.True(result.Success);
         var request = Assert.Single(handler.Calls).Request;
         Assert.Equal(HttpMethod.Get, request.Method);
         Assert.Equal(
-            "https://sandbox.przelewy24.pl/api/v1/report/history?dateFrom=20261001&dateTo=20261031&type=transaction",
+            $"https://sandbox.przelewy24.pl/api/v1/report/history?{expectedQuery}&type=transaction",
             request.RequestUri!.ToString());
     }
 
@@ -748,8 +769,9 @@ public sealed class P24ProviderTests
         Assert.Equal(PaymentState.Completed, payment.State);
         Assert.Equal("154", payment.MethodId);
         Assert.Equal(20, payment.Fee);
-        Assert.Equal(new DateTimeOffset(2026, 7, 15, 12, 30, 0, TimeSpan.FromHours(2)), payment.CreatedAt);
-        Assert.Equal(new DateTimeOffset(2026, 7, 15, 12, 31, 0, TimeSpan.FromHours(2)), payment.PaidAt);
+        // Still CEST: summer time ends on 25 October 2026.
+        Assert.Equal(new DateTimeOffset(2026, 10, 15, 12, 30, 0, TimeSpan.FromHours(2)), payment.CreatedAt);
+        Assert.Equal(new DateTimeOffset(2026, 10, 15, 12, 31, 0, TimeSpan.FromHours(2)), payment.PaidAt);
     }
 
     [Fact]
@@ -770,23 +792,57 @@ public sealed class P24ProviderTests
     }
 
     [Fact]
-    public async Task GetPaymentHistory_NextPageToken_FetchesTokenPathUntilPageCount()
+    public async Task GetPaymentHistory_SparseEntry_KeepsItWithEmptyFields()
     {
-        var (provider, handler) = Create((request, _) => StubHttpMessageHandler.Json(HttpStatusCode.OK,
-            request.RequestUri!.AbsolutePath.EndsWith("/next-abc") ? HistoryJson(token: "next-def") : HistoryJson()));
+        // An entry without a type is kept, since only transactions were requested; absent fields stay empty.
+        var (provider, _) = Create((_, _) => StubHttpMessageHandler.Json(HttpStatusCode.OK,
+            """{"data":[{"amount":1000,"currency":"PLN","details":[{"ordrId":987654,"sessionId":"order-1"}]}],"responseCode":0}"""));
 
-        var first = await provider.GetPaymentHistoryAsync(History);
-        var second = await provider.GetPaymentHistoryAsync(new PaymentHistoryRequest
+        var result = await provider.GetPaymentHistoryAsync(History);
+
+        Assert.True(result.Success);
+        var payment = Assert.Single(result.Payments);
+        Assert.Equal("987654", payment.ProviderId);
+        Assert.Equal(PaymentState.Unknown, payment.State);
+        Assert.Null(payment.MethodId);
+        Assert.Null(payment.CreatedAt);
+        Assert.Null(payment.PaidAt);
+        Assert.Null(payment.Fee);
+    }
+
+    [Fact]
+    public async Task GetPaymentHistory_PageLoop_FollowsTokensAndStopsAtPageCount()
+    {
+        // The last page carries a token too; paging must still stop at pageCount.
+        var pages = new Dictionary<string, string>
         {
-            From = History.From,
-            To = History.To,
-            PageToken = first.NextPageToken,
-        });
+            ["/api/v1/report/history"] = HistoryJson(token: "token-2", pageCount: 3),
+            ["/api/v1/report/history/token-2"] = HistoryJson(token: "token-3", pageCount: 3),
+            ["/api/v1/report/history/token-3"] = HistoryJson(token: "token-4", pageCount: 3),
+        };
+        var (provider, handler) = Create((request, _) =>
+            StubHttpMessageHandler.Json(HttpStatusCode.OK, pages[request.RequestUri!.AbsolutePath]));
 
-        Assert.NotNull(first.NextPageToken);
-        Assert.Equal("https://sandbox.przelewy24.pl/api/v1/report/history/next-abc", handler.Calls[1].Request.RequestUri!.ToString());
-        Assert.True(second.Success);
-        Assert.Null(second.NextPageToken); // page 2 of 2, although P24 sent another token
+        string? pageToken = null;
+        var pagesFetched = 0;
+        do
+        {
+            var page = await provider.GetPaymentHistoryAsync(new PaymentHistoryRequest
+            {
+                From = History.From,
+                To = History.To,
+                PageToken = pageToken,
+            });
+            Assert.True(page.Success);
+            Assert.Single(page.Payments);
+            pageToken = page.NextPageToken;
+            pagesFetched++;
+        } while (pageToken is not null);
+
+        Assert.Equal(3, pagesFetched);
+        Assert.Equal(
+            new[] { "/api/v1/report/history", "/api/v1/report/history/token-2", "/api/v1/report/history/token-3" },
+            handler.Calls.Select(call => call.Request.RequestUri!.AbsolutePath));
     }
 
     [Theory]

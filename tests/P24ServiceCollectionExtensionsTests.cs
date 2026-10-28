@@ -1,9 +1,11 @@
+using System.Net;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Payment.Models.Abstractions;
 using Payment.Core.P24.Options;
 using Payment.Core.P24.Providers;
+using Payment.Models.Requests;
 
 namespace Payment.Tests;
 
@@ -56,6 +58,30 @@ public sealed class P24ServiceCollectionExtensionsTests
         Assert.IsType<P24Provider>(sp.GetRequiredService<IPaymentProvider>());
         Assert.IsType<P24Provider>(sp.GetRequiredService<IPaymentHistoryProvider>());
         Assert.NotNull(sp.GetRequiredService<P24Provider>());
+    }
+
+    [Fact]
+    public async Task AddP24_BothInterfacesSendThroughTheTypedHttpClient()
+    {
+        // Handlers configured on the "P24Provider" client apply to both interfaces. The base address
+        // keeps any request that bypasses the stub on this machine instead of reaching P24.
+        var handler = new StubHttpMessageHandler((_, _) => StubHttpMessageHandler.Json(HttpStatusCode.OK, "{}"));
+        var services = new ServiceCollection();
+        services.AddP24(Config(
+            ("P24:MerchantId", "12345"), ("P24:PosId", "12345"),
+            ("P24:ApiKey", "api-key"), ("P24:CrcKey", "crc-key"),
+            ("P24:BaseAddress", "http://127.0.0.1:9/")));
+        services.AddHttpClient<P24Provider>().ConfigurePrimaryHttpMessageHandler(() => handler);
+        using var sp = services.BuildServiceProvider();
+
+        await sp.GetRequiredService<IPaymentProvider>().GetPaymentStatusAsync("order-1");
+        await sp.GetRequiredService<IPaymentHistoryProvider>().GetPaymentHistoryAsync(new PaymentHistoryRequest
+        {
+            From = new DateOnly(2026, 10, 1),
+            To = new DateOnly(2026, 10, 31),
+        });
+
+        Assert.Equal(2, handler.Calls.Count);
     }
 
     [Fact]
