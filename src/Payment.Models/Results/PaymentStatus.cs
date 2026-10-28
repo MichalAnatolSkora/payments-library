@@ -19,4 +19,19 @@ public sealed class PaymentStatus
     /// Provider-specific method/channel identifier (optional).
     /// </summary>
     public string? MethodId { get; init; }
+
+    /// <summary>
+    /// When the payment was registered with the provider (optional).
+    /// </summary>
+    public DateTimeOffset? CreatedAt { get; init; }
+
+    /// <summary>
+    /// When the customer paid (optional).
+    /// </summary>
+    public DateTimeOffset? PaidAt { get; init; }
+
+    /// <summary>
+    /// Provider commission in the lowest currency unit (optional).
+    /// </summary>
+    public int? Fee { get; init; }
 }

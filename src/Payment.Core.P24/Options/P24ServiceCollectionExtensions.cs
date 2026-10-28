@@ -11,8 +11,9 @@ public static class P24ServiceCollectionExtensions
     public const string SectionName = "P24";
 
     /// <summary>
-    /// Registers <see cref="IPaymentProvider"/> backed by Przelewy24, bound to the
-    /// <c>P24</c> configuration section. Options are validated when the host starts.
+    /// Registers <see cref="IPaymentProvider"/> and <see cref="IPaymentHistoryProvider"/> backed by Przelewy24,
+    /// bound to the <c>P24</c> configuration section. Options are validated when the host starts.
+    /// <see cref="P24Provider"/> itself is resolvable too, for P24-specific calls such as <c>TestAccessAsync</c>.
     /// If logging is registered, <see cref="P24Provider"/> logs failed calls and rejected notifications at Warning.
     /// </summary>
     public static IServiceCollection AddP24(this IServiceCollection services, IConfiguration configuration)
@@ -37,10 +38,14 @@ public static class P24ServiceCollectionExtensions
         // consumers can take P24Options without going through IOptions<T>.
         services.AddSingleton(sp => sp.GetRequiredService<IOptions<P24Options>>().Value);
 
-        services.AddHttpClient<IPaymentProvider, P24Provider>((sp, client) =>
+        services.AddHttpClient<P24Provider>((sp, client) =>
         {
             client.BaseAddress = sp.GetRequiredService<P24Options>().BaseAddress;
         });
+
+        // One typed client behind every abstraction the provider implements.
+        services.AddTransient<IPaymentProvider>(sp => sp.GetRequiredService<P24Provider>());
+        services.AddTransient<IPaymentHistoryProvider>(sp => sp.GetRequiredService<P24Provider>());
 
         return services;
     }

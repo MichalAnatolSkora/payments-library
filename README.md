@@ -95,6 +95,7 @@ Notes:
 - If `ILogger` is registered, the provider logs failed calls and rejected notifications at `Warning`.
 - `P24Provider.TestAccessAsync()` calls `GET /api/v1/testAccess` to check the credentials.
 - Transport failures and timeouts come back as failed results, not exceptions; only caller cancellation throws.
+- Besides `IPaymentProvider`, `AddP24` registers `IPaymentHistoryProvider` and `P24Provider` itself (for P24-specific calls such as `TestAccessAsync()`).
 
 ## API
 
@@ -105,6 +106,46 @@ Notes:
 | `ValidateNotification` | Verify IPN/webhook signature integrity |
 | `ConfirmPaymentAsync` | Confirm/settle a payment after a validated notification |
 | `RefundAsync` | Issue a full or partial refund |
+| `GetPaymentHistoryAsync` | List payments in a date range, page by page (`IPaymentHistoryProvider`) |
+
+## Payment History
+
+`IPaymentHistoryProvider` is an optional capability, separate from `IPaymentProvider`: it lists the payments the provider recorded, like the transaction list in the merchant panel. `P24Provider` implements it with the P24 Report API (`GET /api/v1/report/history`).
+
+```csharp
+// P24Provider implements it; with DI, inject IPaymentHistoryProvider instead.
+var history = (IPaymentHistoryProvider)provider;
+
+string? pageToken = null;
+do
+{
+    var page = await history.GetPaymentHistoryAsync(new PaymentHistoryRequest
+    {
+        From      = new DateOnly(2026, 10, 1),
+        To        = new DateOnly(2026, 10, 31),
+        PageToken = pageToken,  // null for the first page
+    });
+    if (!page.Success)
+    {
+        // page.ErrorCode / page.ErrorMessage
+        break;
+    }
+
+    foreach (var payment in page.Payments)
+    {
+        // payment.SessionId, payment.ProviderId, payment.State, payment.Amount, payment.PaidAt, payment.Fee
+    }
+
+    pageToken = page.NextPageToken;
+} while (pageToken is not null);
+```
+
+Notes:
+
+- Przelewy24 enables the Report API per account on request (through your account manager or the P24 contact form). Until then the call fails with the error P24 returns.
+- One request covers at most 31 days, both ends inclusive; longer ranges fail before anything is sent.
+- Each item is a `PaymentStatus`, the same model `GetPaymentStatusAsync` returns. P24 timestamps (Polish local time) come back as `DateTimeOffset`.
+- Only transactions are listed for now; refunds and payout batches from the same report are not exposed yet.
 
 ## Test Console
 

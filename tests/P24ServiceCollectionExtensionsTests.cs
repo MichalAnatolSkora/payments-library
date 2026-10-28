@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Payment.Models.Abstractions;
 using Payment.Core.P24.Options;
+using Payment.Core.P24.Providers;
 
 namespace Payment.Tests;
 
@@ -43,6 +44,18 @@ public sealed class P24ServiceCollectionExtensionsTests
         Assert.Equal(12345, options.MerchantId);
         Assert.True(options.IsSandbox);
         Assert.NotNull(provider);
+    }
+
+    [Fact]
+    public void AddP24_ResolvesHistoryProviderAndConcreteProvider()
+    {
+        var services = new ServiceCollection();
+        services.AddP24(ValidConfig());
+        using var sp = services.BuildServiceProvider();
+
+        Assert.IsType<P24Provider>(sp.GetRequiredService<IPaymentProvider>());
+        Assert.IsType<P24Provider>(sp.GetRequiredService<IPaymentHistoryProvider>());
+        Assert.NotNull(sp.GetRequiredService<P24Provider>());
     }
 
     [Fact]

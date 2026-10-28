@@ -1,6 +1,8 @@
+using System.Globalization;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Payment.Core.P24.Models;
@@ -13,14 +15,14 @@ using Payment.Models.Results;
 namespace Payment.Core.P24.Providers;
 
 /// <summary>
-/// Przelewy24 (P24) implementation of <see cref="IPaymentProvider"/>.
+/// Przelewy24 (P24) implementation of <see cref="IPaymentProvider"/> and <see cref="IPaymentHistoryProvider"/>.
 /// REST API docs: https://developers.przelewy24.pl/
 /// </summary>
 /// <remarks>
 /// The provider never mutates the <see cref="HttpClient"/> it is given: the base address comes from
 /// the client when set, otherwise from <see cref="P24Options.BaseAddress"/>, and Basic auth is attached per request.
 /// </remarks>
-public sealed class P24Provider : IPaymentProvider
+public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
 {
     private const string TestAccessPath = "/api/v1/testAccess";
     private const string TransactionRegisterPath = "/api/v1/transaction/register";
@@ -28,6 +30,7 @@ public sealed class P24Provider : IPaymentProvider
     private const string TransactionBySessionIdPath = "/api/v1/transaction/by/sessionId";
     private const string TransactionVerifyPath = "/api/v1/transaction/verify";
     private const string TransactionRefundPath = "/api/v1/transaction/refund";
+    private const string ReportHistoryPath = "/api/v1/report/history";
 
     // Field limits from the P24 OpenAPI spec.
     private const int MaxSessionIdLength = 100;
@@ -37,6 +40,7 @@ public sealed class P24Provider : IPaymentProvider
     private const int MaxUrlLength = 250;
     private const int MaxRefundRequestIdLength = 35;
     private const int MaxRefundDescriptionLength = 35;
+    private const int MaxHistoryRangeDays = 31;
 
     private readonly P24Options _options;
     private readonly HttpClient _httpClient;
@@ -150,6 +154,9 @@ public sealed class P24Provider : IPaymentProvider
                 Currency = data.Currency,
                 State = MapState(data.Status),
                 MethodId = data.MethodId?.ToString(),
+                CreatedAt = P24Time.Parse(data.Date),
+                PaidAt = P24Time.Parse(data.DateOfTransaction),
+                Fee = int.TryParse(data.Fee, NumberStyles.Integer, CultureInfo.InvariantCulture, out var fee) ? fee : null,
             });
         }, PaymentStatusResult.Fail, cancellationToken);
 
@@ -369,14 +376,79 @@ public sealed class P24Provider : IPaymentProvider
             return RefundResult.Ok(refundId);
         }, RefundResult.Fail, cancellationToken);
 
+    /// <summary>
+    /// Calls GET /api/v1/report/history for transactions. Przelewy24 enables the Report API per account
+    /// on request; until then the call fails with the error P24 returns.
+    /// </summary>
+    public Task<PaymentHistoryResult> GetPaymentHistoryAsync(
+        PaymentHistoryRequest request,
+        CancellationToken cancellationToken = default)
+        => GuardAsync(async () =>
+        {
+            if (ValidateHistoryRange(request) is { } problem)
+            {
+                return PaymentHistoryResult.Fail(problem, 0);
+            }
+
+            var page = 1;
+            var path = $"{ReportHistoryPath}?dateFrom={FormatReportDate(request.From)}&dateTo={FormatReportDate(request.To)}&type=transaction";
+            if (request.PageToken is not null)
+            {
+                if (!TryParseHistoryPageToken(request.PageToken, out page, out var p24Token))
+                {
+                    return PaymentHistoryResult.Fail("PageToken must be a NextPageToken returned by GetPaymentHistoryAsync.", 0);
+                }
+
+                path = $"{ReportHistoryPath}/{Uri.EscapeDataString(p24Token)}";
+            }
+
+            using var response = await SendAsync(HttpMethod.Get, path, null, cancellationToken);
+            var result = await JsonHelper.ReadJsonOrNull<P24ApiResponse<List<ReportHistoryItem>>>(response, cancellationToken);
+
+            if (!response.IsSuccessStatusCode || result is null || result.HasError || result.Data is null)
+            {
+                var message = result?.ErrorMessage ?? "Payment history lookup failed.";
+                _logger.LogWarning("P24 history failed for {From}..{To} (page {Page}): {Message} (HTTP {StatusCode}).",
+                    request.From, request.To, page, message, (int)response.StatusCode);
+                return PaymentHistoryResult.Fail($"{message} (HTTP {(int)response.StatusCode})", FailureCode(response, result));
+            }
+
+            // Entries of other types are skipped in case P24 ignores the type filter.
+            var payments = result.Data
+                .Where(item => item.Type is null || string.Equals(item.Type, "transaction", StringComparison.OrdinalIgnoreCase))
+                .SelectMany(item => (item.Details ?? []).Select(details => ToPaymentStatus(item, details)))
+                .ToList();
+
+            // Stop at pageCount when P24 reports it instead of relying on the token alone.
+            var hasNextPage = !string.IsNullOrEmpty(result.Token)
+                && result.Data.Count > 0
+                && page < (ReadPageCount(result.PageInformation) ?? int.MaxValue);
+
+            return PaymentHistoryResult.Ok(payments, hasNextPage ? $"{page + 1}:{result.Token}" : null);
+        }, PaymentHistoryResult.Fail, cancellationToken);
+
     private static PaymentState MapState(int status) => status switch
     {
         // Per P24 docs: 0 - no payment, 1 - advance payment, 2 - payment made, 3 - payment returned.
+        // report/history documents the same codes as unpaid, paid, paid and verified, refunded.
         0 => PaymentState.Pending,
         1 => PaymentState.Processing,
         2 => PaymentState.Completed,
         3 => PaymentState.Refunded,
         _ => PaymentState.Unknown,
+    };
+
+    private static PaymentStatus ToPaymentStatus(ReportHistoryItem item, ReportTransactionDetails details) => new()
+    {
+        SessionId = details.SessionId ?? string.Empty,
+        ProviderId = (details.OrderId ?? details.OrdrId)?.ToString(),
+        Amount = item.Amount,
+        Currency = item.Currency ?? string.Empty,
+        State = details.Status is { } status ? MapState(status) : PaymentState.Unknown,
+        MethodId = details.MethodId?.ToString(),
+        CreatedAt = P24Time.Parse(details.Date),
+        PaidAt = P24Time.Parse(details.DateOfTransaction),
+        Fee = details.Fee,
     };
 
     // ------------------------------------------------------------------ helpers
@@ -434,6 +506,54 @@ public sealed class P24Provider : IPaymentProvider
         => string.IsNullOrWhiteSpace(sessionId) || sessionId.Length > MaxSessionIdLength
             ? $"SessionId must be 1-{MaxSessionIdLength} characters."
             : null;
+
+    private static string? ValidateHistoryRange(PaymentHistoryRequest r)
+    {
+        if (r.From > r.To)
+        {
+            return "From must not be later than To.";
+        }
+
+        // Both ends are inclusive, so any calendar month fits.
+        if (r.To.DayNumber - r.From.DayNumber + 1 > MaxHistoryRangeDays)
+        {
+            return $"The date range must span at most {MaxHistoryRangeDays} days.";
+        }
+
+        return null;
+    }
+
+    private static string FormatReportDate(DateOnly date)
+        => date.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// NextPageToken is "{page}:{P24 token}"; the page number lets the provider stop at pageCount.
+    /// </summary>
+    private static bool TryParseHistoryPageToken(string pageToken, out int page, out string p24Token)
+    {
+        var separator = pageToken.IndexOf(':');
+        p24Token = separator < 0 ? string.Empty : pageToken[(separator + 1)..];
+        return int.TryParse(pageToken.AsSpan(0, Math.Max(separator, 0)), NumberStyles.None, CultureInfo.InvariantCulture, out page)
+            && page > 1
+            && p24Token.Length > 0;
+    }
+
+    /// <summary>
+    /// Reads pageCount from pageInformation, which the P24 spec shows both as an object and as a one-element array.
+    /// </summary>
+    private static int? ReadPageCount(JsonElement? pageInformation)
+    {
+        var info = pageInformation is { ValueKind: JsonValueKind.Array } array && array.GetArrayLength() > 0
+            ? array[0]
+            : pageInformation;
+
+        return info is { ValueKind: JsonValueKind.Object } obj
+            && obj.TryGetProperty("pageCount", out var count)
+            && count.ValueKind == JsonValueKind.Number
+            && count.TryGetInt32(out var value)
+                ? value
+                : null;
+    }
 
     /// <summary>
     /// Client-side check of the limits P24 enforces on /transaction/register, so callers get

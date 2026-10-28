@@ -21,6 +21,19 @@ internal sealed class P24ApiResponse<T>
     [JsonPropertyName("code")]
     public int? ErrorCode { get; init; }
 
+    /// <summary>
+    /// Next-page token returned by the paginated report endpoints.
+    /// </summary>
+    [JsonPropertyName("token")]
+    public string? Token { get; init; }
+
+    /// <summary>
+    /// Paging counters returned by the report endpoints. The P24 spec documents it as an object
+    /// for some endpoints and as a one-element array for others, so it is kept raw.
+    /// </summary>
+    [JsonPropertyName("pageInformation")]
+    public JsonElement? PageInformation { get; init; }
+
     [JsonIgnore]
     public bool HasError => Error is { ValueKind: not (JsonValueKind.Null or JsonValueKind.Undefined) };
 
