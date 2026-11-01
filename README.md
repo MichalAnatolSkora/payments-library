@@ -95,7 +95,7 @@ Notes:
 - If `ILogger` is registered, the provider logs failed calls and rejected notifications at `Warning`.
 - `P24Provider.TestAccessAsync()` calls `GET /api/v1/testAccess` to check the credentials.
 - Transport failures and timeouts come back as failed results, not exceptions; only caller cancellation throws.
-- Besides `IPaymentProvider`, `AddP24` registers `IPaymentHistoryProvider` and `P24Provider` itself (for P24-specific calls such as `TestAccessAsync()`).
+- Besides `IPaymentProvider`, `AddP24` registers `IPaymentHistoryProvider` and `P24Provider` itself (for P24-specific calls such as `TestAccessAsync()`). All three share one named `HttpClient`, `nameof(IPaymentProvider)`; to add handlers (retries, logging) call `services.AddHttpClient<IPaymentProvider, P24Provider>().AddHttpMessageHandler(...)` after `AddP24` and they apply to all of them.
 
 ## API
 
@@ -144,6 +144,8 @@ Notes:
 
 - Przelewy24 enables the Report API per account on request (through your account manager or the P24 contact form). Until then the call fails with the error P24 returns.
 - One request covers at most 31 days, both ends inclusive; longer ranges fail before anything is sent.
+- `NextPageToken` continues the query it was issued for: pass it with the same `From` and `To`, otherwise the call fails before anything is sent.
+- An entry P24 sends in an unexpected shape is skipped with a warning instead of failing the page.
 - Each item is a `PaymentStatus`, the same model `GetPaymentStatusAsync` returns. P24 timestamps (Polish local time) come back as `DateTimeOffset`.
 - Only transactions are listed for now; refunds and payout batches from the same report are not exposed yet.
 

@@ -61,17 +61,17 @@ public sealed class P24ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public async Task AddP24_BothInterfacesSendThroughTheTypedHttpClient()
+    public async Task AddP24_AllRegistrationsShareTheNamedHttpClient()
     {
-        // Handlers configured on the "P24Provider" client apply to both interfaces. The base address
-        // keeps any request that bypasses the stub on this machine instead of reaching P24.
+        // Handlers configured on the IPaymentProvider client apply to both interfaces and to P24Provider.
+        // The base address keeps any request that bypasses the stub on this machine instead of reaching P24.
         var handler = new StubHttpMessageHandler((_, _) => StubHttpMessageHandler.Json(HttpStatusCode.OK, "{}"));
         var services = new ServiceCollection();
         services.AddP24(Config(
             ("P24:MerchantId", "12345"), ("P24:PosId", "12345"),
             ("P24:ApiKey", "api-key"), ("P24:CrcKey", "crc-key"),
             ("P24:BaseAddress", "http://127.0.0.1:9/")));
-        services.AddHttpClient<P24Provider>().ConfigurePrimaryHttpMessageHandler(() => handler);
+        services.AddHttpClient<IPaymentProvider, P24Provider>().ConfigurePrimaryHttpMessageHandler(() => handler);
         using var sp = services.BuildServiceProvider();
 
         await sp.GetRequiredService<IPaymentProvider>().GetPaymentStatusAsync("order-1");
@@ -80,8 +80,36 @@ public sealed class P24ServiceCollectionExtensionsTests
             From = new DateOnly(2026, 10, 1),
             To = new DateOnly(2026, 10, 31),
         });
+        await sp.GetRequiredService<P24Provider>().TestAccessAsync();
 
-        Assert.Equal(2, handler.Calls.Count);
+        Assert.Equal(3, handler.Calls.Count);
+    }
+
+    [Fact]
+    public void AddP24_NamedClientKeepsItsName()
+    {
+        // Consumers configure handlers by this name, so it is part of the contract.
+        var services = new ServiceCollection();
+        services.AddP24(ValidConfig());
+        using var sp = services.BuildServiceProvider();
+
+        var client = sp.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(IPaymentProvider));
+
+        Assert.Equal(P24Options.SandboxBaseAddress, client.BaseAddress);
+    }
+
+    [Fact]
+    public void AddP24_InterfacesDoNotResolveP24ProviderFromTheContainer()
+    {
+        // A consumer may register P24Provider itself (e.g. the old workaround forwarding IPaymentProvider).
+        // The interfaces must not go through that registration, or such a forward would recurse.
+        var services = new ServiceCollection();
+        services.AddP24(ValidConfig());
+        services.AddTransient<P24Provider>(_ => throw new InvalidOperationException("P24Provider resolved from the container"));
+        using var sp = services.BuildServiceProvider();
+
+        Assert.IsType<P24Provider>(sp.GetRequiredService<IPaymentProvider>());
+        Assert.IsType<P24Provider>(sp.GetRequiredService<IPaymentHistoryProvider>());
     }
 
     [Fact]

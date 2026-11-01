@@ -34,6 +34,17 @@ public sealed class P24TimeTests
         Assert.Null(P24Time.Parse(value));
     }
 
+    // A year-1 placeholder (default(DateTime) formatted) has no UTC instant once the positive offset
+    // is applied; it must come back as "no date", not as ArgumentOutOfRangeException from the provider.
+    [Theory]
+    [InlineData("0001-01-01 00:00:00")]
+    [InlineData("0001-01-01T00:30:00")]
+    [InlineData("0001-01-01")]
+    public void Parse_UnrepresentableInstant_ReturnsNull(string value)
+    {
+        Assert.Null(P24Time.Parse(value));
+    }
+
     // Fixed offsets rather than the system zone: the fallback matters exactly where the system has no tzdata.
     [Theory]
     [InlineData("2026-01-15T12:00:00", 1)]

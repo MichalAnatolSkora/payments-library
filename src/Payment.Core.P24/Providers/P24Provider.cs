@@ -112,7 +112,7 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
             if (!response.IsSuccessStatusCode || result is null || result.HasError || result.Data is null)
             {
                 return CreatePaymentResult.Fail(
-                    FailureMessage("register", request.SessionId, response, result, "Transaction registration failed."),
+                    FailureMessage("register", $"session {request.SessionId}", response, result, "Transaction registration failed."),
                     FailureCode(response, result));
             }
 
@@ -141,7 +141,7 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
             if (!response.IsSuccessStatusCode || result is null || result.HasError || result.Data is null)
             {
                 return PaymentStatusResult.Fail(
-                    FailureMessage("status", sessionId, response, result, "Status lookup failed."),
+                    FailureMessage("status", $"session {sessionId}", response, result, "Status lookup failed."),
                     FailureCode(response, result));
             }
 
@@ -249,16 +249,18 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
             if (!response.IsSuccessStatusCode || result is null || result.HasError)
             {
                 return ConfirmPaymentResult.Fail(
-                    FailureMessage("verify", request.SessionId, response, result, "Verification failed."),
+                    FailureMessage("verify", $"session {request.SessionId}", response, result, "Verification failed."),
                     FailureCode(response, result));
             }
 
-            // P24 reports "success" in data.status; anything else is a rejection despite HTTP 200.
+            // P24 reports "success" in data.status; anything else, a missing status included, is a rejection despite HTTP 200.
             var status = result.Data?.Status;
-            if (status is not null && !string.Equals(status, "success", StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(status, "success", StringComparison.OrdinalIgnoreCase))
             {
                 _logger.LogWarning("P24 verify for session {SessionId} returned status '{Status}'.", request.SessionId, status);
-                return ConfirmPaymentResult.Fail($"Verification returned status '{status}'.", (int)response.StatusCode);
+                return ConfirmPaymentResult.Fail(
+                    status is null ? "Verification returned no status." : $"Verification returned status '{status}'.",
+                    (int)response.StatusCode);
             }
 
             _logger.LogDebug("P24 verify succeeded for session {SessionId}.", request.SessionId);
@@ -351,7 +353,7 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
             if (!response.IsSuccessStatusCode || result is null || result.HasError)
             {
                 return RefundResult.Fail(
-                    FailureMessage("refund", request.SessionId, response, result, "Refund failed."),
+                    FailureMessage("refund", $"session {request.SessionId}", response, result, "Refund failed."),
                     FailureCode(response, result));
             }
 
@@ -359,7 +361,7 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
             if (result.Data is null || result.Data.Count == 0)
             {
                 return RefundResult.Fail(
-                    FailureMessage("refund", request.SessionId, response, result, "Refund response contained no refund items."),
+                    FailureMessage("refund", $"session {request.SessionId}", response, result, "Refund response contained no refund items."),
                     (int)response.StatusCode);
             }
 
@@ -390,41 +392,56 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
                 return PaymentHistoryResult.Fail(problem, 0);
             }
 
+            var range = FormatReportRange(request);
             var page = 1;
             var path = $"{ReportHistoryPath}?dateFrom={FormatReportDate(request.From)}&dateTo={FormatReportDate(request.To)}&type=transaction";
             if (request.PageToken is not null)
             {
-                if (!TryParseHistoryPageToken(request.PageToken, out page, out var p24Token))
+                if (!TryParseHistoryPageToken(request.PageToken, out page, out var tokenRange, out var p24Token))
                 {
                     return PaymentHistoryResult.Fail("PageToken must be a NextPageToken returned by GetPaymentHistoryAsync.", 0);
+                }
+
+                if (tokenRange != range)
+                {
+                    return PaymentHistoryResult.Fail(
+                        $"PageToken was issued for {tokenRange}; keep From and To unchanged while paging.", 0);
                 }
 
                 path = $"{ReportHistoryPath}/{Uri.EscapeDataString(p24Token)}";
             }
 
             using var response = await SendAsync(HttpMethod.Get, path, null, cancellationToken);
-            var result = await JsonHelper.ReadJsonOrNull<P24ApiResponse<List<ReportHistoryItem>>>(response, cancellationToken);
+            var result = await JsonHelper.ReadJsonOrNull<P24ApiResponse<List<JsonElement>>>(response, cancellationToken);
 
             if (!response.IsSuccessStatusCode || result is null || result.HasError || result.Data is null)
             {
-                var message = result?.ErrorMessage ?? "Payment history lookup failed.";
-                _logger.LogWarning("P24 history failed for {From}..{To} (page {Page}): {Message} (HTTP {StatusCode}).",
-                    request.From, request.To, page, message, (int)response.StatusCode);
-                return PaymentHistoryResult.Fail($"{message} (HTTP {(int)response.StatusCode})", FailureCode(response, result));
+                return PaymentHistoryResult.Fail(
+                    FailureMessage("history", $"{range} page {page}", response, result, "Payment history lookup failed."),
+                    FailureCode(response, result));
             }
 
-            // Entries of other types are skipped in case P24 ignores the type filter.
-            var payments = result.Data
-                .Where(item => item.Type is null || string.Equals(item.Type, "transaction", StringComparison.OrdinalIgnoreCase))
-                .SelectMany(item => (item.Details ?? []).Select(details => ToPaymentStatus(item, details)))
-                .ToList();
+            // Entries are bound one at a time, so a malformed entry is skipped instead of failing the page.
+            var payments = new List<PaymentStatus>();
+            foreach (var entry in result.Data)
+            {
+                if (ReadHistoryItemOrNull(entry) is not { } item || !IsTransaction(item))
+                {
+                    continue;
+                }
+
+                foreach (var details in item.Details?.OfType<ReportTransactionDetails>() ?? [])
+                {
+                    payments.Add(ToPaymentStatus(item, details));
+                }
+            }
 
             // Stop at pageCount when P24 reports it instead of relying on the token alone.
             var hasNextPage = !string.IsNullOrEmpty(result.Token)
                 && result.Data.Count > 0
                 && page < (ReadPageCount(result.PageInformation) ?? int.MaxValue);
 
-            return PaymentHistoryResult.Ok(payments, hasNextPage ? $"{page + 1}:{result.Token}" : null);
+            return PaymentHistoryResult.Ok(payments, hasNextPage ? $"{page + 1}:{range}:{result.Token}" : null);
         }, PaymentHistoryResult.Fail, cancellationToken);
 
     private static PaymentState MapState(int status) => status switch
@@ -450,6 +467,23 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
         PaidAt = P24Time.Parse(details.DateOfTransaction),
         Fee = details.Fee,
     };
+
+    // Entries of other types are skipped in case P24 ignores the type filter.
+    private static bool IsTransaction(ReportHistoryItem item)
+        => item.Type is null || string.Equals(item.Type, "transaction", StringComparison.OrdinalIgnoreCase);
+
+    private ReportHistoryItem? ReadHistoryItemOrNull(JsonElement entry)
+    {
+        try
+        {
+            return entry.Deserialize<ReportHistoryItem>(JsonSerializerOptions.Web);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "P24 history entry skipped because it could not be read: {Message}", ex.Message);
+            return null;
+        }
+    }
 
     // ------------------------------------------------------------------ helpers
 
@@ -491,11 +525,11 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
     }
 
     private string FailureMessage<T>(
-        string operation, string sessionId, HttpResponseMessage response, P24ApiResponse<T>? result, string fallback)
+        string operation, string subject, HttpResponseMessage response, P24ApiResponse<T>? result, string fallback)
     {
         var message = result?.ErrorMessage ?? fallback;
-        _logger.LogWarning("P24 {Operation} failed for session {SessionId}: {Message} (HTTP {StatusCode}).",
-            operation, sessionId, message, (int)response.StatusCode);
+        _logger.LogWarning("P24 {Operation} failed for {Subject}: {Message} (HTTP {StatusCode}).",
+            operation, subject, message, (int)response.StatusCode);
         return $"{message} (HTTP {(int)response.StatusCode})";
     }
 
@@ -526,16 +560,27 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
     private static string FormatReportDate(DateOnly date)
         => date.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
 
+    private static string FormatReportRange(PaymentHistoryRequest r)
+        => $"{FormatReportDate(r.From)}-{FormatReportDate(r.To)}";
+
     /// <summary>
-    /// NextPageToken is "{page}:{P24 token}"; the page number lets the provider stop at pageCount.
+    /// NextPageToken is "{page}:{dateFrom}-{dateTo}:{P24 token}": the page number lets the provider stop
+    /// at pageCount, and the range catches a token reused with other dates.
     /// </summary>
-    private static bool TryParseHistoryPageToken(string pageToken, out int page, out string p24Token)
+    private static bool TryParseHistoryPageToken(string pageToken, out int page, out string range, out string p24Token)
     {
-        var separator = pageToken.IndexOf(':');
-        p24Token = separator < 0 ? string.Empty : pageToken[(separator + 1)..];
-        return int.TryParse(pageToken.AsSpan(0, Math.Max(separator, 0)), NumberStyles.None, CultureInfo.InvariantCulture, out page)
+        var parts = pageToken.Split(':', 3);
+        page = 0;
+        range = parts.Length == 3 ? parts[1] : string.Empty;
+        p24Token = parts.Length == 3 ? parts[2] : string.Empty;
+
+        return parts.Length == 3
+            && int.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out page)
             && page > 1
-            && p24Token.Length > 0;
+            && range.Length == "yyyyMMdd-yyyyMMdd".Length
+            && p24Token.Length > 0
+            // "." and ".." would leave the history path once the URI is combined.
+            && p24Token is not ("." or "..");
     }
 
     /// <summary>

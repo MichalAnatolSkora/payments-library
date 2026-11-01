@@ -314,6 +314,20 @@ public sealed class P24ProviderTests
         Assert.Contains("'error'", result.ErrorMessage);
     }
 
+    [Theory]
+    [InlineData("""{"responseCode":0}""")]
+    [InlineData("""{"data":null,"responseCode":0}""")]
+    [InlineData("""{"data":{},"responseCode":0}""")]
+    public async Task Confirm_DataStatusMissing_Fails(string json)
+    {
+        var (provider, _) = Create((_, _) => StubHttpMessageHandler.Json(HttpStatusCode.OK, json));
+
+        var result = await provider.ConfirmPaymentAsync(Confirm);
+
+        Assert.False(result.Success);
+        Assert.Contains("no status", result.ErrorMessage);
+    }
+
     [Fact]
     public async Task Refund_NonNumericProviderId_FailsBeforeSending()
     {
@@ -792,6 +806,33 @@ public sealed class P24ProviderTests
     }
 
     [Fact]
+    public async Task GetPaymentHistory_MalformedEntries_AreSkippedNotFatal()
+    {
+        // One odd entry must not fail the page: null entries, an unreadable amount and a null detail row
+        // are skipped (the unreadable one with a warning), while lenient numbers keep the payment itself.
+        var logger = new ListLogger();
+        var (provider, _) = Create((_, _) => StubHttpMessageHandler.Json(HttpStatusCode.OK, """
+            {"data":[
+              null,
+              {"type":"transaction","amount":1000,"currency":"PLN","details":[{"ordrId":1,"sessionId":"ok-1","status":2,"fee":""}]},
+              {"type":"transaction","amount":null,"currency":"PLN","details":[{"ordrId":2,"sessionId":"bad-amount"}]},
+              {"type":"transaction","amount":1000,"currency":"PLN","details":[null,{"ordrId":"3","sessionId":"ok-3","status":"2","fee":"20"}]}
+            ],"responseCode":0}
+            """), logger);
+
+        var result = await provider.GetPaymentHistoryAsync(History);
+
+        Assert.True(result.Success);
+        Assert.Equal(["ok-1", "ok-3"], result.Payments.Select(p => p.SessionId));
+        Assert.Null(result.Payments[0].Fee);
+        Assert.Equal("3", result.Payments[1].ProviderId);
+        Assert.Equal(PaymentState.Completed, result.Payments[1].State);
+        Assert.Equal(20, result.Payments[1].Fee);
+        var entry = Assert.Single(logger.Entries, e => e.Level == LogLevel.Warning);
+        Assert.Contains("skipped", entry.Message);
+    }
+
+    [Fact]
     public async Task GetPaymentHistory_SparseEntry_KeepsItWithEmptyFields()
     {
         // An entry without a type is kept, since only transactions were requested; absent fields stay empty.
@@ -880,9 +921,12 @@ public sealed class P24ProviderTests
     }
 
     [Theory]
-    [InlineData("next-abc")]   // no page number
-    [InlineData("1:next-abc")] // page 1 is the date-range query itself
-    [InlineData("2:")]         // no P24 token
+    [InlineData("next-abc")]                       // a bare P24 token
+    [InlineData("2:next-abc")]                     // no date range
+    [InlineData("1:20261001-20261031:next-abc")]   // page 1 is the date-range query itself
+    [InlineData("2:20261001-20261031:")]           // no P24 token
+    [InlineData("2:20261001-20261031:.")]          // dot segments would change the request path
+    [InlineData("2:20261001-20261031:..")]
     public async Task GetPaymentHistory_ForeignPageToken_FailsBeforeSending(string pageToken)
     {
         var (provider, handler) = Create((_, _) => throw new InvalidOperationException("no HTTP expected"));
@@ -899,9 +943,33 @@ public sealed class P24ProviderTests
         Assert.Empty(handler.Calls);
     }
 
+    [Fact]
+    public async Task GetPaymentHistory_PageTokenForAnotherRange_FailsBeforeSending()
+    {
+        // The token continues the query it was issued for; reusing it with other dates would silently
+        // return the old range as a page of the new one.
+        var (provider, handler) = Create((_, _) => StubHttpMessageHandler.Json(HttpStatusCode.OK, HistoryJson()));
+        var october = await provider.GetPaymentHistoryAsync(History);
+
+        var result = await provider.GetPaymentHistoryAsync(new PaymentHistoryRequest
+        {
+            From = new DateOnly(2026, 11, 1),
+            To = new DateOnly(2026, 11, 30),
+            PageToken = october.NextPageToken,
+        });
+
+        Assert.False(result.Success);
+        Assert.Equal("0", result.ErrorCode);
+        Assert.Contains("20261001-20261031", result.ErrorMessage);
+        Assert.Contains("From and To", result.ErrorMessage);
+        Assert.Single(handler.Calls);
+    }
+
     [Theory]
     [InlineData("400")]
-    [InlineData("\"400\"")] // the P24 spec types this code as a string
+    [InlineData("\"400\"")]        // the P24 spec types this code as a string
+    [InlineData("\"\"")]           // a non-numeric code must not cost the message; the HTTP status stands in
+    [InlineData("\"ERR_REPORT\"")]
     public async Task GetPaymentHistory_ApiError_FailsWithMessageAndCode(string code)
     {
         var (provider, _) = Create((_, _) => StubHttpMessageHandler.Json(HttpStatusCode.BadRequest,
@@ -912,7 +980,7 @@ public sealed class P24ProviderTests
         Assert.False(result.Success);
         Assert.Null(result.Payments);
         Assert.Equal("400", result.ErrorCode);
-        Assert.Contains("Invalid data provided", result.ErrorMessage);
+        Assert.StartsWith("Invalid data provided: type: Provided type is unknown", result.ErrorMessage);
         Assert.Contains("HTTP 400", result.ErrorMessage);
     }
 

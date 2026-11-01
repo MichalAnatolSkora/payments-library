@@ -14,6 +14,8 @@ public static class P24ServiceCollectionExtensions
     /// Registers <see cref="IPaymentProvider"/> and <see cref="IPaymentHistoryProvider"/> backed by Przelewy24,
     /// bound to the <c>P24</c> configuration section. Options are validated when the host starts.
     /// <see cref="P24Provider"/> itself is resolvable too, for P24-specific calls such as <c>TestAccessAsync</c>.
+    /// All three share one named <see cref="HttpClient"/>, <c>nameof(IPaymentProvider)</c>; handlers added with
+    /// <c>services.AddHttpClient&lt;IPaymentProvider, P24Provider&gt;()</c> after this call apply to all of them.
     /// If logging is registered, <see cref="P24Provider"/> logs failed calls and rejected notifications at Warning.
     /// </summary>
     public static IServiceCollection AddP24(this IServiceCollection services, IConfiguration configuration)
@@ -38,14 +40,15 @@ public static class P24ServiceCollectionExtensions
         // consumers can take P24Options without going through IOptions<T>.
         services.AddSingleton(sp => sp.GetRequiredService<IOptions<P24Options>>().Value);
 
-        services.AddHttpClient<P24Provider>((sp, client) =>
-        {
-            client.BaseAddress = sp.GetRequiredService<P24Options>().BaseAddress;
-        });
-
-        // One typed client behind every abstraction the provider implements.
-        services.AddTransient<IPaymentProvider>(sp => sp.GetRequiredService<P24Provider>());
-        services.AddTransient<IPaymentHistoryProvider>(sp => sp.GetRequiredService<P24Provider>());
+        // One named client behind every abstraction the provider implements. The typed-client factory
+        // builds each instance itself, so a consumer's own P24Provider registration is never entered
+        // on the way to the interfaces (a forward through the container would recurse).
+        services.AddHttpClient<IPaymentProvider, P24Provider>((sp, client) =>
+            {
+                client.BaseAddress = sp.GetRequiredService<P24Options>().BaseAddress;
+            })
+            .AddTypedClient<IPaymentHistoryProvider, P24Provider>()
+            .AddTypedClient<P24Provider>();
 
         return services;
     }

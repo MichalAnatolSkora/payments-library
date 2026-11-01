@@ -12,7 +12,8 @@ internal static class P24Time
     private static readonly TimeZoneInfo Warsaw = FindWarsaw();
 
     /// <summary>
-    /// Returns null for a missing or unparseable value, e.g. the empty payment date of an unpaid transaction.
+    /// Returns null for a missing or unparseable value, e.g. the empty payment date of an unpaid transaction,
+    /// and for a placeholder such as 0001-01-01 that has no UTC instant once the offset is applied.
     /// </summary>
     internal static DateTimeOffset? Parse(string? value)
     {
@@ -21,7 +22,14 @@ internal static class P24Time
             return null;
         }
 
-        return new DateTimeOffset(local, Warsaw.GetUtcOffset(local));
+        var offset = Warsaw.GetUtcOffset(local);
+        var utcTicks = local.Ticks - offset.Ticks;
+        if (utcTicks < DateTime.MinValue.Ticks || utcTicks > DateTime.MaxValue.Ticks)
+        {
+            return null;
+        }
+
+        return new DateTimeOffset(local, offset);
     }
 
     private static TimeZoneInfo FindWarsaw()

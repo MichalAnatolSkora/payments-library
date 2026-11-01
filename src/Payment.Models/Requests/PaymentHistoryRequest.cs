@@ -14,7 +14,8 @@ public sealed class PaymentHistoryRequest
 
     /// <summary>
     /// <c>PaymentHistoryResult.NextPageToken</c> from the previous page; null for the first page.
-    /// The token continues the original query, so keep <see cref="From"/> and <see cref="To"/> unchanged.
+    /// The token continues the original query, so keep <see cref="From"/> and <see cref="To"/> unchanged;
+    /// a token issued for another range is rejected before anything is sent.
     /// </summary>
     public string? PageToken { get; init; }
 }

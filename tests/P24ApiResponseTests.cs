@@ -65,4 +65,37 @@ public sealed class P24ApiResponseTests
         Assert.True(r.HasError);
         Assert.Equal("""{"field":"amount"}""", r.ErrorMessage);
     }
+
+    [Theory]
+    [InlineData("\"400\"", 400)] // the report endpoints type the code as a string
+    [InlineData("\"\"", null)]
+    [InlineData("\"ERR_REPORT\"", null)]
+    [InlineData("true", null)]
+    [InlineData("{\"nested\":1}", null)]
+    public void NonNumericCode_KeepsTheMessage(string code, int? expectedCode)
+    {
+        var r = Parse($$"""{"error":"Report API not enabled","code":{{code}}}""");
+
+        Assert.Equal("Report API not enabled", r.ErrorMessage);
+        Assert.Equal(expectedCode, r.ErrorCode);
+    }
+
+    [Fact]
+    public void ValidationDetails_AppendedToMessage()
+    {
+        var r = Parse("""{"error":"Invalid data provided","code":"400","validation":[{"type":["Provided type is unknown"]},{"dateTo":["Must be after dateFrom","Max 31 days"]}]}""");
+
+        Assert.Equal(
+            "Invalid data provided: type: Provided type is unknown; dateTo: Must be after dateFrom, Max 31 days",
+            r.ErrorMessage);
+    }
+
+    [Theory]
+    [InlineData("""{"error":"Invalid data provided","validation":[]}""")]
+    [InlineData("""{"error":"Invalid data provided","validation":null}""")]
+    [InlineData("""{"error":"Invalid data provided","validation":"oops"}""")]
+    public void EmptyOrOddValidation_LeavesMessageAlone(string json)
+    {
+        Assert.Equal("Invalid data provided", Parse(json).ErrorMessage);
+    }
 }
