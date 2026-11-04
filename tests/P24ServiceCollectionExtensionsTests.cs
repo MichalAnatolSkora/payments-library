@@ -113,6 +113,29 @@ public sealed class P24ServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void AddP24_NormalizeText_OnByDefault()
+    {
+        var services = new ServiceCollection();
+        services.AddP24(ValidConfig());
+        using var sp = services.BuildServiceProvider();
+
+        Assert.True(sp.GetRequiredService<P24Options>().NormalizeText);
+    }
+
+    [Fact]
+    public void AddP24_NormalizeTextFalse_BindsFromConfiguration()
+    {
+        var services = new ServiceCollection();
+        services.AddP24(Config(
+            ("P24:MerchantId", "12345"), ("P24:PosId", "12345"),
+            ("P24:ApiKey", "api-key"), ("P24:CrcKey", "crc-key"),
+            ("P24:NormalizeText", "false")));
+        using var sp = services.BuildServiceProvider();
+
+        Assert.False(sp.GetRequiredService<P24Options>().NormalizeText);
+    }
+
+    [Fact]
     public void AddP24_MissingIsSandbox_DefaultsToSandbox()
     {
         // A config that forgets IsSandbox (or uses the old "Sandbox" key) must not hit production.
