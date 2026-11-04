@@ -1189,14 +1189,136 @@ public sealed class P24ProviderTests
         Assert.Equal("502", result.ErrorCode);
     }
 
+    // ------------------------------------------------------------ Text for P24
+
+    [Fact]
+    public async Task CreatePayment_AdjustsDescriptionAndClientToWhatP24Stores()
+    {
+        var (provider, handler) = Create((_, _) => StubHttpMessageHandler.Json(HttpStatusCode.OK,
+            """{"data":{"token":"abc123"},"responseCode":0}"""));
+
+        await provider.CreatePaymentAsync(NewCreateRequest(description: "Bánh Mì – #42", customerName: "Nguyễn Thị 🍜"));
+
+        var (_, body) = Assert.Single(handler.Calls);
+        using var doc = JsonDocument.Parse(body!);
+        Assert.Equal("Bánh Mi - #42", doc.RootElement.GetProperty("description").GetString());
+        Assert.Equal("Nguyen Thi", doc.RootElement.GetProperty("client").GetString());
+    }
+
+    [Fact]
+    public async Task CreatePayment_NormalizeTextOff_SendsTextAsGiven()
+    {
+        var handler = new StubHttpMessageHandler((_, _) => StubHttpMessageHandler.Json(HttpStatusCode.OK,
+            """{"data":{"token":"abc123"},"responseCode":0}"""));
+        var options = new P24Options
+        {
+            MerchantId = 12345, PosId = 12345, ApiKey = "api-key", CrcKey = "crc-key", NormalizeText = false,
+        };
+        var provider = new P24Provider(options, new HttpClient(handler));
+
+        await provider.CreatePaymentAsync(NewCreateRequest(description: "Bánh Mì – #42", customerName: "Nguyễn 🍜"));
+
+        var (_, body) = Assert.Single(handler.Calls);
+        using var doc = JsonDocument.Parse(body!);
+        Assert.Equal("Bánh Mì – #42", doc.RootElement.GetProperty("description").GetString());
+        Assert.Equal("Nguyễn 🍜", doc.RootElement.GetProperty("client").GetString());
+    }
+
+    [Fact]
+    public async Task CreatePayment_ClientWithNothingStorable_IsOmitted()
+    {
+        var (provider, handler) = Create((_, _) => StubHttpMessageHandler.Json(HttpStatusCode.OK,
+            """{"data":{"token":"abc123"},"responseCode":0}"""));
+
+        var result = await provider.CreatePaymentAsync(NewCreateRequest(customerName: "🍜🍜"));
+
+        Assert.True(result.Success);
+        using var doc = JsonDocument.Parse(Assert.Single(handler.Calls).Body!);
+        Assert.False(doc.RootElement.TryGetProperty("client", out _));
+    }
+
+    [Fact]
+    public async Task CreatePayment_DescriptionWithNothingStorable_FailsBeforeSending()
+    {
+        var (provider, handler) = Create((_, _) => throw new InvalidOperationException("no HTTP expected"));
+
+        var result = await provider.CreatePaymentAsync(NewCreateRequest(description: "🍜"));
+
+        Assert.False(result.Success);
+        Assert.Contains("Description", result.ErrorMessage);
+        Assert.Empty(handler.Calls);
+    }
+
+    [Fact]
+    public async Task CreatePayment_LimitsApplyToAdjustedText()
+    {
+        // 39 characters as given, 41 as sent: each "Æ" is spelled "AE".
+        var (provider, handler) = Create((_, _) => throw new InvalidOperationException("no HTTP expected"));
+
+        var result = await provider.CreatePaymentAsync(NewCreateRequest(customerName: "Æ" + new string('n', 37) + "Æ"));
+
+        Assert.False(result.Success);
+        Assert.Contains("CustomerName", result.ErrorMessage);
+        Assert.Empty(handler.Calls);
+    }
+
+    [Fact]
+    public async Task Refund_AdjustsDescriptionToWhatP24Stores()
+    {
+        var (provider, handler) = Create((_, _) => StubHttpMessageHandler.Json(HttpStatusCode.Created,
+            """{"data":[{"orderId":987654,"sessionId":"order-1","amount":500,"status":true,"message":"success"}],"responseCode":0}"""));
+
+        var result = await provider.RefundAsync(new RefundRequest
+        {
+            SessionId = "order-1", ProviderId = "987654", Amount = 500, Description = "Zwrot – #42 ✓",
+        });
+
+        Assert.True(result.Success);
+        using var doc = JsonDocument.Parse(Assert.Single(handler.Calls).Body!);
+        Assert.Equal("Zwrot - #42", doc.RootElement.GetProperty("refunds")[0].GetProperty("description").GetString());
+    }
+
+    [Fact]
+    public async Task Refund_DescriptionOverLimitOnlyAsSent_FailsBeforeSending()
+    {
+        // 34 characters as given, 36 as sent: "…" is spelled "...".
+        var (provider, handler) = Create((_, _) => throw new InvalidOperationException("no HTTP expected"));
+
+        var result = await provider.RefundAsync(new RefundRequest
+        {
+            SessionId = "order-1", ProviderId = "987654", Amount = 500, Description = new string('r', 33) + "…",
+        });
+
+        Assert.False(result.Success);
+        Assert.Contains("Description", result.ErrorMessage);
+        Assert.Empty(handler.Calls);
+    }
+
+    [Fact]
+    public async Task AdjustedText_LoggedAtDebugWithoutTheText()
+    {
+        var logger = new ListLogger();
+        var (provider, _) = Create((_, _) => StubHttpMessageHandler.Json(HttpStatusCode.OK,
+            """{"data":{"token":"abc123"},"responseCode":0}"""), logger);
+
+        await provider.CreatePaymentAsync(NewCreateRequest(customerName: "Nguyễn"));
+
+        var entry = Assert.Single(logger.Entries, e => e.Level == LogLevel.Debug && e.Message.Contains("client"));
+        Assert.Contains("order-1", entry.Message);
+        Assert.DoesNotContain("Nguy", entry.Message);   // a customer's name stays out of the logs
+        Assert.DoesNotContain(logger.Entries, e => e.Message.Contains("description"));   // "Order 1" needed nothing
+    }
+
     private static CreatePaymentRequest NewCreateRequest(
-        string sessionId = "order-1", int amount = 1000, string currency = "PLN", string country = "PL") => new()
+        string sessionId = "order-1", int amount = 1000, string currency = "PLN", string country = "PL",
+        string description = "Order 1", string? customerName = null) => new()
     {
         SessionId = sessionId,
         Amount = amount,
         Currency = currency,
-        Description = "Order 1",
+        Description = description,
         CustomerEmail = "a@b.pl",
+        CustomerName = customerName,
         Country = country,
         Language = "pl",
         ReturnUrl = "https://shop.example/return",

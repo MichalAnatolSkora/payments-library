@@ -19,8 +19,8 @@ IPaymentProvider provider = new P24Provider(new P24Options
 {
     MerchantId = 12345,
     PosId      = 12345,
-    ApiKey     = "...",   // "Klucz do raportów" from the P24 panel
-    CrcKey     = "...",   // CRC key from the P24 panel
+    ApiKey     = "...",   // "Klucz API" from the P24 panel
+    CrcKey     = "...",   // "Klucz do CRC" from the P24 panel
     IsSandbox  = true,
 }, new HttpClient());
 
@@ -82,7 +82,8 @@ builder.Services.AddP24(builder.Configuration);
     "PosId": 0,
     "ApiKey": "",
     "CrcKey": "",
-    "IsSandbox": true
+    "IsSandbox": true,
+    "NormalizeText": true
   }
 }
 ```
@@ -96,6 +97,7 @@ Notes:
 - `P24Provider.TestAccessAsync()` calls `GET /api/v1/testAccess` to check the credentials.
 - Transport failures and timeouts come back as failed results, not exceptions; only caller cancellation throws.
 - Besides `IPaymentProvider`, `AddP24` registers `IPaymentHistoryProvider` and `P24Provider` itself (for P24-specific calls such as `TestAccessAsync()`). All three share one named `HttpClient`, `nameof(IPaymentProvider)`; to add handlers (retries, logging) call `services.AddHttpClient<IPaymentProvider, P24Provider>().AddHttpMessageHandler(...)` after `AddP24` and they apply to all of them.
+- `NormalizeText` (default `true`) adjusts the description and the names to the characters P24 can store – see [Text P24 stores](#text-p24-stores).
 
 ## API
 
@@ -148,6 +150,42 @@ Notes:
 - An entry P24 sends in an unexpected shape is skipped with a warning instead of failing the page.
 - Each item is a `PaymentStatus`, the same model `GetPaymentStatusAsync` returns. P24 timestamps (Polish local time) come back as `DateTimeOffset`.
 - Only transactions are listed for now; refunds and payout batches from the same report are not exposed yet.
+
+## Text P24 stores
+
+P24 keeps the transaction description, the customer's name and the refund description in ISO-8859-2 (Latin-2) – also when the request is UTF-8, as this library sends it – and replaces every other character with `?`. `Bánh Mì – #42` would show as `Bánh M? ? #42` in the P24 panel and on the customer's confirmation.
+
+So the provider passes these three texts through `P24Text.Normalize` (namespace `Payment.Core.P24.Formatting`) before sending them:
+
+| Given | Sent |
+|---|---|
+| `Zażółć gęślą jaźń`, `Příliš`, `Grüße` | unchanged – ISO-8859-2 has these letters |
+| `Bánh Mì – #42` | `Bánh Mi - #42` |
+| `„Pod Lipą”`, `O’Brien’s` | `"Pod Lipą"`, `O'Brien's` |
+| `Nguyễn Văn Thọ` | `Nguyen Văn Tho` – each letter keeps the accents ISO-8859-2 can carry |
+| `Ærøskøbing`, `10 €` | `AEroskobing`, `10 EUR` |
+| `ﬁ`, `½`, `™`, `…` | `fi`, `1/2`, `TM`, `...` |
+| `Anna 🍜` | `Anna` – emoji are removed |
+| `Олена` | `?????` – as P24 itself would store it |
+
+White space (new lines, tabs, no-break spaces) becomes single spaces, and the text is trimmed. The length limits – description 1024, customer name 40, refund description 35 characters – are checked on the text as sent. A customer name or a refund description with nothing storable left is omitted.
+
+Letters of other scripts (Cyrillic, Chinese…) can't be spelled in ISO-8859-2 without knowing the language: transliterate them before passing them in – text P24 can already store passes through unchanged. `P24Text.Normalize` is public, so the same text can be shown to the customer before paying. To send the texts exactly as given, set `NormalizeText` to `false`.
+
+## Przelewy24 panel
+
+The panel's API configuration ("Konfiguracja API") and the options:
+
+| Panel | Option |
+|---|---|
+| Klucz API ("Klucz do raportów" in older versions of the panel) | `ApiKey` |
+| Klucz do CRC | `CrcKey` |
+| Klucz do zamówień | not used |
+| Adresy IP | see below |
+
+`MerchantId` is the merchant's number and `PosId` the shop's, usually the same. The sandbox and production accounts have separate numbers and keys.
+
+"Adresy IP": if you fill it in, list the public IPv4 address of every server that calls the API. Neither `secure.przelewy24.pl` nor `sandbox.przelewy24.pl` has an IPv6 address (checked November 2026), so P24 sees the IPv4 one. Notifications go the other way, from P24 to `NotifyUrl`.
 
 ## Test Console
 
