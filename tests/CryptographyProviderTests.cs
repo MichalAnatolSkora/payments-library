@@ -31,6 +31,30 @@ public sealed class CryptographyProviderTests
     }
 
     [Fact]
+    public void Signs_LeaveEmojiNoBreakSpaceAndDeleteUnescaped_AsPhpDoes()
+    {
+        // Built from code points so the source file stays plain: an emoji (outside the BMP), U+00A0 and U+007F.
+        var text = $"a{char.ConvertFromUtf32(0x1F35C)}{(char)0xA0}{(char)0x7F}<>&'+z";
+        var register = Sha384($$"""{"sessionId":"{{text}}","merchantId":12345,"amount":1000,"currency":"PLN","crc":"crc-key"}""");
+        var webhook = Sha384(
+            $$"""{"merchantId":12345,"posId":12345,"sessionId":"order-1","amount":1000,"originAmount":1000,"currency":"PLN","orderId":987654,"methodId":154,"statement":"{{text}}","crc":"crc-key"}""");
+
+        Assert.Equal(register, CryptographyProvider.ComputeRegisterSign(12345, "crc-key", text, 1000, "PLN"));
+        Assert.Equal(webhook, CryptographyProvider.ComputeWebhookSign(
+            12345, "crc-key", 12345, "order-1", 1000, 1000, "PLN", 987654, 154, text));
+    }
+
+    [Fact]
+    public void Signs_EscapeQuoteBackslashControlsAndLineSeparators_AsPhpDoes()
+    {
+        var sessionId = $"a\"b\\c\nd\te{(char)0x1F}f{(char)0x2028}g{(char)0x2029}h";
+        var expected = Sha384(
+            """{"sessionId":"a\"b\\c\nd\te\u001ff\u2028g\u2029h","orderId":987654,"amount":1000,"currency":"PLN","crc":"crc-key"}""");
+
+        Assert.Equal(expected, CryptographyProvider.ComputeNotifySign("crc-key", sessionId, 987654, 1000, "PLN"));
+    }
+
+    [Fact]
     public void SignsMatch_AcceptsCaseInsensitiveHex()
     {
         var sign = CryptographyProvider.ComputeRegisterSign(1, "c", "s", 1, "PLN");

@@ -125,6 +125,8 @@ if (refund.DuplicateRequest)
 - `DuplicateRequest` does not say the money went back. P24 keeps the `RequestId` of every refund request it received, also of one it refused, so the earlier request may have been accepted (a retry after a lost answer) or refused.
 - For a refund of the whole payment, `GetPaymentStatusAsync` tells which: the state is `Refunded` once the refund went through. A partial refund cannot be told from the status; check it in the P24 panel.
 - A refund that did not go through needs a new `RequestId`.
+- Without a `RequestId` the provider generates one and returns it as `RefundResult.RefundId` – also on a failure once the request was sent, e.g. a timeout. P24 may have accepted that refund, so retry with `RequestId = refund.RefundId`; a retry without it gets a new identifier and can refund twice.
+- When P24 answers 2xx but the answer cannot be read, the result is a failure whose `ErrorMessage` says the refund may have gone through. Treat it like a lost answer: check the refund, and retry only with the same `RequestId`.
 
 ## Payment History
 

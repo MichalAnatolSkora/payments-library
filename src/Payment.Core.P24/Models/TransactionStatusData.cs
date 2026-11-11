@@ -2,6 +2,10 @@ using System.Text.Json.Serialization;
 
 namespace Payment.Core.P24.Models;
 
+/// <summary>
+/// <c>data</c> payload of GET /transaction/by/sessionId. The optional numbers are read leniently, as in the
+/// report: a value in an unexpected shape becomes null instead of failing the whole lookup.
+/// </summary>
 internal sealed class TransactionStatusData
 {
     /// <summary>
@@ -72,6 +76,7 @@ internal sealed class TransactionStatusData
     /// Payment method ID
     /// </summary>
     [JsonPropertyName("paymentMethod")]
+    [JsonConverter(typeof(LenientIntegerConverter<int>))]
     public int? MethodId { get; init; }
 
     /// <summary>
@@ -108,11 +113,13 @@ internal sealed class TransactionStatusData
     /// Batch number in which the transaction was paid
     /// </summary>
     [JsonPropertyName("batchId")]
+    [JsonConverter(typeof(LenientIntegerConverter<int>))]
     public int? BatchId { get; init; }
 
     /// <summary>
-    /// Commission
+    /// Commission. The spec types it as a string here and as a number in the report; both are read.
     /// </summary>
     [JsonPropertyName("fee")]
-    public string? Fee { get; init; }
+    [JsonConverter(typeof(LenientIntegerConverter<int>))]
+    public int? Fee { get; init; }
 }

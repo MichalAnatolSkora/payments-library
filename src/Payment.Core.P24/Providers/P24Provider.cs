@@ -51,6 +51,9 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
 
     public P24Provider(P24Options options, HttpClient httpClient, ILogger<P24Provider>? logger = null)
     {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(httpClient);
+
         _options = options;
         _httpClient = httpClient;
         _logger = logger ?? NullLogger<P24Provider>.Instance;
@@ -159,7 +162,7 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
                 MethodId = data.MethodId?.ToString(),
                 CreatedAt = P24Time.Parse(data.Date),
                 PaidAt = P24Time.Parse(data.DateOfTransaction),
-                Fee = int.TryParse(data.Fee, NumberStyles.Integer, CultureInfo.InvariantCulture, out var fee) ? fee : null,
+                Fee = data.Fee,
             });
         }, PaymentStatusResult.Fail, cancellationToken);
 
@@ -273,7 +276,14 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
     public Task<RefundResult> RefundAsync(
         RefundRequest request,
         CancellationToken cancellationToken = default)
-        => GuardAsync(async () =>
+    {
+        // One identifier serves as both requestId and refundsUuid, so a retry with the same
+        // RequestId is rejected by P24 as "Request already exists" instead of refunding twice
+        // (reported as RefundResult.DuplicateRequest). It is chosen before the request is sent, so a
+        // failure of the request – a timeout or a lost answer included – reports it for the retry.
+        var refundId = request.RequestId ?? Guid.NewGuid().ToString("N");
+
+        return GuardAsync(async () =>
         {
             if (ValidateSessionId(request.SessionId) is { } problem)
             {
@@ -330,11 +340,6 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
                 return RefundResult.Fail("Refund amount must be greater than zero.", 0);
             }
 
-            // One identifier serves as both requestId and refundsUuid, so a retry with the same
-            // RequestId is rejected by P24 as "Request already exists" instead of refunding twice
-            // (reported as RefundResult.DuplicateRequest).
-            var refundId = request.RequestId ?? Guid.NewGuid().ToString("N");
-
             var body = new RefundTransactionRequest
             {
                 RequestId = refundId,
@@ -355,12 +360,26 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
             using var response = await SendAsync(HttpMethod.Post, TransactionRefundPath, body, cancellationToken);
             var result = await JsonHelper.ReadJsonOrNull<P24ApiResponse<List<RefundResultItem>>>(response, cancellationToken);
 
+            // A 2xx whose body cannot be read says nothing about the refund, which P24 may have accepted.
+            // It is reported apart from a refusal, so the caller does not send the refund again under a new RequestId.
+            if (response.IsSuccessStatusCode && result is null)
+            {
+                _logger.LogWarning(
+                    "P24 refund {RefundId} for session {SessionId}: the answer (HTTP {StatusCode}) could not be read; the refund may have gone through.",
+                    refundId, request.SessionId, (int)response.StatusCode);
+                return RefundResult.Fail(
+                    $"The refund may have gone through: Przelewy24 answered HTTP {(int)response.StatusCode}, but the answer could not be read. " +
+                    $"Check the refund before retrying, and retry only with the same RequestId ({refundId}).",
+                    (int)response.StatusCode,
+                    refundId);
+            }
+
             if (!response.IsSuccessStatusCode || result is null || result.HasError)
             {
                 var failure = FailureMessage("refund", $"session {request.SessionId}", response, result, "Refund failed.");
                 return IsDuplicateRefundRequest(result)
                     ? RefundResult.Duplicate(failure, FailureCode(response, result))
-                    : RefundResult.Fail(failure, FailureCode(response, result));
+                    : RefundResult.Fail(failure, FailureCode(response, result), refundId);
             }
 
             // HTTP 201 still carries a per-item status; a rejected item is a failed refund.
@@ -368,7 +387,8 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
             {
                 return RefundResult.Fail(
                     FailureMessage("refund", $"session {request.SessionId}", response, result, "Refund response contained no refund items."),
-                    (int)response.StatusCode);
+                    (int)response.StatusCode,
+                    refundId);
             }
 
             var rejected = result.Data.Where(item => !item.Status).ToList();
@@ -377,12 +397,13 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
                 var message = string.Join("; ", rejected.Select(item => item.Message ?? "Refund rejected."));
                 _logger.LogWarning("P24 refund {RefundId} for session {SessionId} rejected: {Message}",
                     refundId, request.SessionId, message);
-                return RefundResult.Fail(message, (int)response.StatusCode);
+                return RefundResult.Fail(message, (int)response.StatusCode, refundId);
             }
 
             _logger.LogDebug("P24 refund {RefundId} succeeded for session {SessionId}.", refundId, request.SessionId);
             return RefundResult.Ok(refundId);
-        }, RefundResult.Fail, cancellationToken);
+        }, (error, code) => RefundResult.Fail(error, code, refundId), cancellationToken);
+    }
 
     /// <summary>
     /// Calls GET /api/v1/report/history for transactions. Przelewy24 enables the Report API per account
@@ -572,9 +593,16 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
     }
 
     private static string? ValidateSessionId(string? sessionId)
-        => string.IsNullOrWhiteSpace(sessionId) || sessionId.Length > MaxSessionIdLength
-            ? $"SessionId must be 1-{MaxSessionIdLength} characters."
-            : null;
+    {
+        if (string.IsNullOrWhiteSpace(sessionId) || sessionId.Length > MaxSessionIdLength)
+        {
+            return $"SessionId must be 1-{MaxSessionIdLength} characters.";
+        }
+
+        // "." and ".." would leave the status path once the URI is combined, so such a payment
+        // could be registered but never looked up.
+        return sessionId is "." or ".." ? "SessionId must not be \".\" or \"..\"." : null;
+    }
 
     private static string? ValidateHistoryRange(PaymentHistoryRequest r)
     {

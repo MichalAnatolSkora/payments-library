@@ -29,7 +29,8 @@ public sealed class RefundRequest
     /// Idempotency key for this refund. Retrying with the same value will not issue a second refund:
     /// the provider refuses it and the result has <c>RefundResult.DuplicateRequest</c> set – also when the
     /// earlier request with this value was itself refused, so a refund that did not go through needs a new value.
-    /// Generated when null. Przelewy24 caps it at 35 characters. Returned as <c>RefundResult.RefundId</c>.
+    /// Generated when null. Przelewy24 caps it at 35 characters. Returned as <c>RefundResult.RefundId</c>, also on
+    /// a failure once the request was sent – pass that value here to retry a refund whose answer was lost.
     /// </summary>
     public string? RequestId { get; init; }
 

@@ -407,6 +407,35 @@ public sealed class P24ProviderTests
         Assert.Empty(handler.Calls);
     }
 
+    [Theory]
+    [InlineData(".")]
+    [InlineData("..")]
+    public async Task DotSessionId_FailsBeforeSending_SoItCannotLeaveTheStatusPath(string sessionId)
+    {
+        var (provider, handler) = Create((_, _) => throw new InvalidOperationException("no HTTP expected"));
+
+        var status = await provider.GetPaymentStatusAsync(sessionId);
+        var create = await provider.CreatePaymentAsync(NewCreateRequest(sessionId: sessionId));
+
+        Assert.False(status.Success);
+        Assert.False(create.Success);
+        Assert.Contains("SessionId", status.ErrorMessage);
+        Assert.Contains("SessionId", create.ErrorMessage);
+        Assert.Empty(handler.Calls);
+    }
+
+    [Fact]
+    public async Task GetPaymentStatus_SessionIdWithDots_StaysOnTheStatusPath()
+    {
+        var (provider, handler) = Create((_, _) => StubHttpMessageHandler.Html(HttpStatusCode.NotFound));
+
+        await provider.GetPaymentStatusAsync("order..1");
+
+        Assert.Equal(
+            "https://sandbox.przelewy24.pl/api/v1/transaction/by/sessionId/order..1",
+            Assert.Single(handler.Calls).Request.RequestUri!.AbsoluteUri);
+    }
+
     private static readonly ConfirmPaymentRequest Confirm = new()
     {
         SessionId = "order-1",
@@ -721,6 +750,47 @@ public sealed class P24ProviderTests
         Assert.Equal("987654", result.Status.ProviderId);
         Assert.Equal(1000, result.Status.Amount);
         Assert.Equal("154", result.Status.MethodId);
+    }
+
+    [Theory]
+    [InlineData("""{"orderId":987654,"sessionId":"order-1","status":2,"amount":1000,"currency":"PLN","fee":25}""", 25)]
+    [InlineData("""{"orderId":987654,"sessionId":"order-1","status":0,"amount":1000,"currency":"PLN","paymentMethod":"","batchId":"","fee":""}""", null)]
+    [InlineData("""{"orderId":987654,"sessionId":"order-1","status":0,"amount":1000,"currency":"PLN","paymentMethod":null,"batchId":{},"fee":"1.5"}""", null)]
+    public async Task GetPaymentStatus_OptionalNumbersInAnotherShape_DoNotFailTheLookup(string data, int? expectedFee)
+    {
+        var (provider, _) = Create((_, _) => StubHttpMessageHandler.Json(HttpStatusCode.OK,
+            $$"""{"data":{{data}},"responseCode":0}"""));
+
+        var result = await provider.GetPaymentStatusAsync("order-1");
+
+        Assert.True(result.Success, result.ErrorMessage);
+        Assert.Equal(1000, result.Status.Amount);
+        Assert.Equal(expectedFee, result.Status.Fee);
+    }
+
+    [Fact]
+    public async Task ResponseWithUnknownCharset_ReturnsFailureInsteadOfThrowing()
+    {
+        var (provider, _) = Create((_, _) =>
+        {
+            var content = new ByteArrayContent("""{"data":{"token":"abc"},"responseCode":0}"""u8.ToArray());
+            content.Headers.TryAddWithoutValidation("Content-Type", "application/json; charset=no-such-charset");
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
+        });
+
+        var result = await provider.CreatePaymentAsync(NewCreateRequest());
+
+        Assert.False(result.Success);
+        Assert.Equal("200", result.ErrorCode);
+    }
+
+    [Fact]
+    public void Constructor_RejectsNullOptionsAndHttpClient()
+    {
+        var options = new P24Options { MerchantId = 1, PosId = 1, ApiKey = "k", CrcKey = "c" };
+
+        Assert.Throws<ArgumentNullException>(() => new P24Provider(null!, new HttpClient()));
+        Assert.Throws<ArgumentNullException>(() => new P24Provider(options, null!));
     }
 
     [Fact]
@@ -1051,6 +1121,62 @@ public sealed class P24ProviderTests
 
         Assert.False(result.Success);
         Assert.Contains("timed out", result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task Refund_Timeout_ReturnsTheGeneratedRequestIdSoARetryCanReuseIt()
+    {
+        string? sentId = null;
+        var (provider, _) = Create((_, body) =>
+        {
+            using var doc = JsonDocument.Parse(body!);
+            sentId = doc.RootElement.GetProperty("requestId").GetString();
+            throw new TaskCanceledException("timeout", new TimeoutException());
+        });
+
+        var result = await provider.RefundAsync(Refund);
+
+        Assert.False(result.Success);
+        Assert.Contains("timed out", result.ErrorMessage);
+        Assert.NotNull(sentId);
+        Assert.Equal(sentId, result.RefundId);
+    }
+
+    [Theory]
+    [InlineData("application/json", """{"data":[{"orderId":987654,"sessionId":"order-1","amount":500,"status":"true"}],"responseCode":0}""")]
+    [InlineData("application/json", "")]
+    [InlineData("text/html", "<html>ok</html>")]
+    public async Task Refund_CreatedWithUnreadableAnswer_SaysTheRefundMayHaveGoneThrough(string contentType, string content)
+    {
+        var (provider, _) = Create((_, _) => new HttpResponseMessage(HttpStatusCode.Created)
+        {
+            Content = new StringContent(content, System.Text.Encoding.UTF8, contentType),
+        });
+
+        var result = await provider.RefundAsync(new RefundRequest
+        {
+            SessionId = "order-1", ProviderId = "987654", Amount = 500, RequestId = "refund-42-1",
+        });
+
+        Assert.False(result.Success);
+        Assert.False(result.DuplicateRequest);
+        Assert.Equal("201", result.ErrorCode);
+        Assert.Equal("refund-42-1", result.RefundId);
+        Assert.Contains("may have gone through", result.ErrorMessage);
+        Assert.Contains("refund-42-1", result.ErrorMessage);
+        Assert.DoesNotContain("Refund failed", result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task Refund_FailedBeforeSending_HasNoRefundId()
+    {
+        var (provider, handler) = Create((_, _) => throw new InvalidOperationException("must not be called"));
+
+        var result = await provider.RefundAsync(new RefundRequest { SessionId = "order-1", ProviderId = "not-a-number", Amount = 500 });
+
+        Assert.False(result.Success);
+        Assert.Null(result.RefundId);
+        Assert.Empty(handler.Calls);
     }
 
     [Fact]
