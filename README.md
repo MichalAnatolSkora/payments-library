@@ -110,6 +110,24 @@ Notes:
 | `RefundAsync` | Issue a full or partial refund |
 | `GetPaymentHistoryAsync` | List payments in a date range, page by page (`IPaymentHistoryProvider`) |
 
+## Retrying a refund
+
+`RefundRequest.RequestId` is the refund's idempotency key: a refund sent twice with the same value is refunded once. The second call fails with `RefundResult.DuplicateRequest` set (P24 answers `Request already exists`).
+
+```csharp
+var refund = await provider.RefundAsync(request);   // request.RequestId = "refund-42-1"
+if (refund.DuplicateRequest)
+{
+    // P24 already has "refund-42-1". Do not send it again – the answer will not change.
+}
+```
+
+- `DuplicateRequest` does not say the money went back. P24 keeps the `RequestId` of every refund request it received, also of one it refused, so the earlier request may have been accepted (a retry after a lost answer) or refused.
+- For a refund of the whole payment, `GetPaymentStatusAsync` tells which: the state is `Refunded` once the refund went through. A partial refund cannot be told from the status; check it in the P24 panel.
+- A refund that did not go through needs a new `RequestId`.
+- Without a `RequestId` the provider generates one and returns it as `RefundResult.RefundId` – also on a failure once the request was sent, e.g. a timeout. P24 may have accepted that refund, so retry with `RequestId = refund.RefundId`; a retry without it gets a new identifier and can refund twice.
+- When P24 answers 2xx but the answer cannot be read, the result is a failure whose `ErrorMessage` says the refund may have gone through. Treat it like a lost answer: check the refund, and retry only with the same `RequestId`.
+
 ## Payment History
 
 `IPaymentHistoryProvider` is an optional capability, separate from `IPaymentProvider`: it lists the payments the provider recorded, like the transaction list in the merchant panel. `P24Provider` implements it with the P24 Report API (`GET /api/v1/report/history`).
@@ -189,32 +207,34 @@ The panel's API configuration ("Konfiguracja API") and the options:
 
 ## Test Console
 
-The `testapp/` project is an ASP.NET Core app with a browser UI for manually testing all provider operations against the sandbox.
+The `testapp/` project is an ASP.NET Core app with a browser UI for manually testing the provider operations against the sandbox.
 
 ```bash
 dotnet run --project testapp
-# open http://localhost:5000
+# opens https://localhost:7197
 ```
 
-### Credential auto-fill
+### Configuration
 
-On startup the SPA calls `GET /api/config`, which reads the `Przelewy24` section from `appsettings.Development.json` and returns it to the browser. The credential fields in the sidebar are then pre-filled automatically — no need to type keys by hand every time.
-
-To set your local credentials, edit `testapp/appsettings.Development.json` (already gitignored):
+The app registers the provider with `AddP24`, so it needs the `P24` section and does not start without it. For local runs put it in `testapp/appsettings.Development.json` (already gitignored):
 
 ```json
 {
-  "Przelewy24": {
-    "MerchantId": 390264,
-    "PosId":      390264,
+  "P24": {
+    "MerchantId": 12345,
+    "PosId":      12345,
     "ApiKey":     "...",
     "CrcKey":     "...",
-    "Sandbox":    true
+    "IsSandbox":  true
   }
 }
 ```
 
-If the file is missing or the section is absent the UI simply starts with empty fields.
+The keys stay on the server. On startup the page calls `GET /api/config`, which returns only `MerchantId`, `PosId` and `IsSandbox`; the page needs the two numbers to validate a notification.
+
+### Access
+
+The console creates payments and issues refunds with the configured account, so outside the `Development` environment it is closed: every request gets HTTP 503 until `TestConsole:Password` is set (environment variable `TestConsole__Password`). Once it is set, the browser asks for it (HTTP Basic, any user name) before showing the page, Swagger or the API. `POST /api/notify` stays open, because Przelewy24 calls it; a notification is checked by its signature.
 
 ## License
 

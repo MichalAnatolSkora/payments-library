@@ -19,7 +19,8 @@ internal static class JsonHelper
         {
             return await response.Content.ReadFromJsonAsync<T>(cancellationToken);
         }
-        catch (JsonException)
+        // InvalidOperationException: the Content-Type names a character set .NET does not know.
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
         {
             return default;
         }

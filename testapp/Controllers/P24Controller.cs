@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Payment.Core.P24.Models;
+using Payment.Core.P24.Options;
 using Payment.Models.Requests;
 using Payment.Sample.Api.Services;
 
@@ -11,17 +12,27 @@ public class P24Controller : ControllerBase
 {
     private readonly IP24ProviderFactory _providerFactory;
     private readonly NotificationStore _store;
+    private readonly P24Options _options;
     private readonly ILogger<P24Controller> _logger;
 
     public P24Controller(
         IP24ProviderFactory providerFactory,
         NotificationStore store,
+        P24Options options,
         ILogger<P24Controller> logger)
     {
         _providerFactory = providerFactory;
         _store = store;
+        _options = options;
         _logger = logger;
     }
+
+    /// <summary>
+    /// The configured merchant and POS numbers, which the page needs to validate a notification. Never the keys.
+    /// </summary>
+    [HttpGet("config")]
+    public IActionResult GetConfig()
+        => Ok(new { _options.MerchantId, _options.PosId, _options.IsSandbox });
 
     [HttpPost("create-payment")]
     public async Task<IActionResult> CreatePayment(

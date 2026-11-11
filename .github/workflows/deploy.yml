@@ -1,5 +1,8 @@
 name: Deploy API
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [ main ]
@@ -29,6 +32,10 @@ jobs:
 
       - name: Build
         run: dotnet build ./Payment.slnx --configuration Release --no-restore
+
+      - name: Test
+        # Integration tests skip themselves when appsettings.Testing.json is absent.
+        run: dotnet test ./Payment.slnx --configuration Release --no-build
 
       - name: Publish
         run: dotnet publish testapp/Payment.Sample.Api.csproj --configuration Release --no-build --output ./publish
