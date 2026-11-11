@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Payment.Core.P24.Formatting;
 using Payment.Core.P24.Models;
 using Payment.Core.P24.Options;
 using Payment.Core.P24.Security;
@@ -81,7 +82,9 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
         CancellationToken cancellationToken = default)
         => GuardAsync(async () =>
         {
-            if (Validate(request) is { } problem)
+            var description = AdjustText(request.Description, "description", request.SessionId);
+            var client = AdjustText(request.CustomerName, "client", request.SessionId, optional: true);
+            if (Validate(request, description, client) is { } problem)
             {
                 return CreatePaymentResult.Fail(problem, 0);
             }
@@ -96,9 +99,9 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
                 SessionId = request.SessionId,
                 Amount = request.Amount,
                 Currency = request.Currency,
-                Description = request.Description,
+                Description = description!,
                 Email = request.CustomerEmail,
-                Client = request.CustomerName,
+                Client = client,
                 Country = request.Country,
                 Language = request.Language,
                 UrlReturn = request.ReturnUrl,
@@ -282,7 +285,8 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
                 return RefundResult.Fail("ProviderId must be a numeric P24 orderId.", 0);
             }
 
-            if (request.Description is { Length: > MaxRefundDescriptionLength })
+            var description = AdjustText(request.Description, "refund description", request.SessionId, optional: true);
+            if (description is { Length: > MaxRefundDescriptionLength })
             {
                 return RefundResult.Fail(
                     $"Description must be at most {MaxRefundDescriptionLength} characters for P24 refunds.", 0);
@@ -342,7 +346,7 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
                         OrderId = orderId,
                         SessionId = request.SessionId,
                         Amount = amount.Value,
-                        Description = request.Description,
+                        Description = description,
                     }
                 ],
             };
@@ -536,6 +540,28 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
     private static int FailureCode<T>(HttpResponseMessage response, P24ApiResponse<T>? result)
         => result?.ErrorCode ?? (int)response.StatusCode;
 
+    /// <summary>
+    /// The text as P24 will store it (<see cref="P24Text.Normalize"/>), or as given when
+    /// <see cref="P24Options.NormalizeText"/> is off. An optional field with nothing storable left (a name of emoji
+    /// only) becomes null, so it is omitted; a required one stays empty for validation to report. Logs at Debug when
+    /// the text changed – without the text, which may be a customer's name.
+    /// </summary>
+    private string? AdjustText(string? value, string field, string sessionId, bool optional = false)
+    {
+        if (value is null || !_options.NormalizeText)
+        {
+            return value;
+        }
+
+        var adjusted = P24Text.Normalize(value);
+        if (!string.Equals(adjusted, value, StringComparison.Ordinal))
+        {
+            _logger.LogDebug("P24 {Field} for session {SessionId} adjusted to the characters P24 can store.", field, sessionId);
+        }
+
+        return optional && adjusted.Length == 0 ? null : adjusted;
+    }
+
     private static string? ValidateSessionId(string? sessionId)
         => string.IsNullOrWhiteSpace(sessionId) || sessionId.Length > MaxSessionIdLength
             ? $"SessionId must be 1-{MaxSessionIdLength} characters."
@@ -602,9 +628,10 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
 
     /// <summary>
     /// Client-side check of the limits P24 enforces on /transaction/register, so callers get
-    /// a precise message instead of a generic HTTP 400.
+    /// a precise message instead of a generic HTTP 400. The description and the client name are checked
+    /// as they will be sent (<see cref="AdjustText"/>).
     /// </summary>
-    private static string? Validate(CreatePaymentRequest r)
+    private static string? Validate(CreatePaymentRequest r, string? description, string? client)
     {
         if (ValidateSessionId(r.SessionId) is { } sessionProblem)
         {
@@ -621,7 +648,7 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
             return "Currency must be a 3-letter ISO code, e.g. PLN.";
         }
 
-        if (string.IsNullOrWhiteSpace(r.Description) || r.Description.Length > MaxDescriptionLength)
+        if (string.IsNullOrWhiteSpace(description) || description.Length > MaxDescriptionLength)
         {
             return $"Description must be 1-{MaxDescriptionLength} characters.";
         }
@@ -631,7 +658,7 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
             return $"CustomerEmail must be 1-{MaxEmailLength} characters.";
         }
 
-        if (r.CustomerName is { Length: > MaxClientNameLength })
+        if (client is { Length: > MaxClientNameLength })
         {
             return $"CustomerName must be at most {MaxClientNameLength} characters.";
         }
