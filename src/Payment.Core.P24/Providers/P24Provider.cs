@@ -331,7 +331,8 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
             }
 
             // One identifier serves as both requestId and refundsUuid, so a retry with the same
-            // RequestId is rejected by P24 as "Request already exists" instead of refunding twice.
+            // RequestId is rejected by P24 as "Request already exists" instead of refunding twice
+            // (reported as RefundResult.DuplicateRequest).
             var refundId = request.RequestId ?? Guid.NewGuid().ToString("N");
 
             var body = new RefundTransactionRequest
@@ -356,9 +357,10 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
 
             if (!response.IsSuccessStatusCode || result is null || result.HasError)
             {
-                return RefundResult.Fail(
-                    FailureMessage("refund", $"session {request.SessionId}", response, result, "Refund failed."),
-                    FailureCode(response, result));
+                var failure = FailureMessage("refund", $"session {request.SessionId}", response, result, "Refund failed.");
+                return IsDuplicateRefundRequest(result)
+                    ? RefundResult.Duplicate(failure, FailureCode(response, result))
+                    : RefundResult.Fail(failure, FailureCode(response, result));
             }
 
             // HTTP 201 still carries a per-item status; a rejected item is a failed refund.
@@ -539,6 +541,13 @@ public sealed class P24Provider : IPaymentProvider, IPaymentHistoryProvider
 
     private static int FailureCode<T>(HttpResponseMessage response, P24ApiResponse<T>? result)
         => result?.ErrorCode ?? (int)response.StatusCode;
+
+    /// <summary>
+    /// P24's answer to a refund RequestId it was sent before: <c>{"error":"Request already exists","code":400}</c>.
+    /// P24 gives it no code of its own, so it is recognised by the text.
+    /// </summary>
+    private static bool IsDuplicateRefundRequest<T>(P24ApiResponse<T>? result)
+        => result?.ErrorMessage?.Contains("Request already exists", StringComparison.OrdinalIgnoreCase) == true;
 
     /// <summary>
     /// The text as P24 will store it (<see cref="P24Text.Normalize"/>), or as given when

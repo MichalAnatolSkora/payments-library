@@ -2,6 +2,12 @@
 
 Changes to the `PaymentsLibrary` and `PaymentsLibrary.Models` packages. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `RefundResult.DuplicateRequest` and the `RefundResult.Duplicate` factory in `PaymentsLibrary.Models`: the provider refused the refund because it was already sent one with this `RequestId`. `P24Provider.RefundAsync` sets it when P24 answers `Request already exists`; before, the answer could only be told from the error text. P24 keeps the `RequestId` of a refund it refused too, so sending the same one again never succeeds – the README has a section on retrying a refund.
+
 ## [1.1.0] – 2026-11-05
 
 ### Added

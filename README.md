@@ -110,6 +110,22 @@ Notes:
 | `RefundAsync` | Issue a full or partial refund |
 | `GetPaymentHistoryAsync` | List payments in a date range, page by page (`IPaymentHistoryProvider`) |
 
+## Retrying a refund
+
+`RefundRequest.RequestId` is the refund's idempotency key: a refund sent twice with the same value is refunded once. The second call fails with `RefundResult.DuplicateRequest` set (P24 answers `Request already exists`).
+
+```csharp
+var refund = await provider.RefundAsync(request);   // request.RequestId = "refund-42-1"
+if (refund.DuplicateRequest)
+{
+    // P24 already has "refund-42-1". Do not send it again – the answer will not change.
+}
+```
+
+- `DuplicateRequest` does not say the money went back. P24 keeps the `RequestId` of every refund request it received, also of one it refused, so the earlier request may have been accepted (a retry after a lost answer) or refused.
+- For a refund of the whole payment, `GetPaymentStatusAsync` tells which: the state is `Refunded` once the refund went through. A partial refund cannot be told from the status; check it in the P24 panel.
+- A refund that did not go through needs a new `RequestId`.
+
 ## Payment History
 
 `IPaymentHistoryProvider` is an optional capability, separate from `IPaymentProvider`: it lists the payments the provider recorded, like the transaction list in the merchant panel. `P24Provider` implements it with the P24 Report API (`GET /api/v1/report/history`).

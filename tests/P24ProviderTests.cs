@@ -610,6 +610,43 @@ public sealed class P24ProviderTests
 
         Assert.False(result.Success);
         Assert.StartsWith("Request already exists", result.ErrorMessage);
+        Assert.True(result.DuplicateRequest);
+        Assert.Equal("400", result.ErrorCode);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest, """{"error":"Incorrect refund data","code":400}""")]
+    [InlineData(HttpStatusCode.Conflict,
+        """{"error":[{"orderId":987654,"sessionId":"order-1","amount":500,"status":false,"message":"The amount of refund exceeds available amount for the transaction"}],"code":409}""")]
+    [InlineData(HttpStatusCode.Created,
+        """{"data":[{"orderId":987654,"sessionId":"order-1","amount":500,"status":false,"message":"Insufficient funds available"}],"responseCode":0}""")]
+    [InlineData(HttpStatusCode.InternalServerError, "<html>error</html>")]
+    public async Task Refund_OtherFailures_AreNotDuplicateRequests(HttpStatusCode status, string json)
+    {
+        var (provider, _) = Create((_, _) => StubHttpMessageHandler.Json(status, json));
+
+        var result = await provider.RefundAsync(new RefundRequest
+        {
+            SessionId = "order-1", ProviderId = "987654", Amount = 500, RequestId = "refund-42-1",
+        });
+
+        Assert.False(result.Success);
+        Assert.False(result.DuplicateRequest);
+    }
+
+    [Fact]
+    public async Task Refund_Success_IsNotADuplicateRequest()
+    {
+        var (provider, _) = Create((_, _) => StubHttpMessageHandler.Json(HttpStatusCode.Created,
+            """{"data":[{"orderId":987654,"sessionId":"order-1","amount":500,"status":true,"message":"success"}],"responseCode":0}"""));
+
+        var result = await provider.RefundAsync(new RefundRequest
+        {
+            SessionId = "order-1", ProviderId = "987654", Amount = 500, RequestId = "refund-42-1",
+        });
+
+        Assert.True(result.Success);
+        Assert.False(result.DuplicateRequest);
     }
 
     [Theory]
