@@ -500,22 +500,19 @@ async function pollNotifications() {
 }
 setInterval(pollNotifications, 3000);
 
-// ── load config from appsettings on startup ──────────────
+// ── load config from the server on startup ───────────────
+// The server keeps the credentials. It returns only the merchant and POS numbers,
+// which validating a notification needs.
+const config = { MerchantId: '', PosId: '' };
 async function loadConfig() {
-  try {
-    const res = await fetch('/api/config');
-    if (!res.ok) return;
-    const c = await res.json();
-    if (c.MerchantId) document.getElementById('cMerchantId').value = c.MerchantId;
-    if (c.PosId)      document.getElementById('cPosId').value      = c.PosId;
-    if (c.ApiKey)     document.getElementById('cApiKey').value     = c.ApiKey;
-    if (c.CrcKey)     document.getElementById('cCrcKey').value     = c.CrcKey;
-    document.getElementById('cSandbox').checked = !!c.Sandbox;
-  } catch { document.getElementById('cSandbox').checked = true }
-
   // pre-fill notify URL with our own endpoint
   document.getElementById('cp-notifyUrl').value =
     window.location.origin + '/api/notify';
+
+  try {
+    const res = await fetch('/api/config');
+    if (res.ok) Object.assign(config, await res.json());
+  } catch { /* server not running */ }
 }
 loadConfig();
 pollNotifications();
@@ -808,8 +805,8 @@ async function validateNotification() {
         originAmount: document.getElementById('vn-originAmount').value,
         methodId:     document.getElementById('vn-methodId').value,
         statement:    document.getElementById('vn-statement').value,
-        merchantId:   document.getElementById('cMerchantId').value,
-        posId:        document.getElementById('cPosId').value,
+        merchantId:   String(config.MerchantId),
+        posId:        String(config.PosId),
       },
     });
     showResult('vn-result', data, !data.valid);

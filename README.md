@@ -207,32 +207,34 @@ The panel's API configuration ("Konfiguracja API") and the options:
 
 ## Test Console
 
-The `testapp/` project is an ASP.NET Core app with a browser UI for manually testing all provider operations against the sandbox.
+The `testapp/` project is an ASP.NET Core app with a browser UI for manually testing the provider operations against the sandbox.
 
 ```bash
 dotnet run --project testapp
-# open http://localhost:5000
+# opens https://localhost:7197
 ```
 
-### Credential auto-fill
+### Configuration
 
-On startup the SPA calls `GET /api/config`, which reads the `Przelewy24` section from `appsettings.Development.json` and returns it to the browser. The credential fields in the sidebar are then pre-filled automatically — no need to type keys by hand every time.
-
-To set your local credentials, edit `testapp/appsettings.Development.json` (already gitignored):
+The app registers the provider with `AddP24`, so it needs the `P24` section and does not start without it. For local runs put it in `testapp/appsettings.Development.json` (already gitignored):
 
 ```json
 {
-  "Przelewy24": {
-    "MerchantId": 390264,
-    "PosId":      390264,
+  "P24": {
+    "MerchantId": 12345,
+    "PosId":      12345,
     "ApiKey":     "...",
     "CrcKey":     "...",
-    "Sandbox":    true
+    "IsSandbox":  true
   }
 }
 ```
 
-If the file is missing or the section is absent the UI simply starts with empty fields.
+The keys stay on the server. On startup the page calls `GET /api/config`, which returns only `MerchantId`, `PosId` and `IsSandbox`; the page needs the two numbers to validate a notification.
+
+### Access
+
+The console creates payments and issues refunds with the configured account, so outside the `Development` environment it is closed: every request gets HTTP 503 until `TestConsole:Password` is set (environment variable `TestConsole__Password`). Once it is set, the browser asks for it (HTTP Basic, any user name) before showing the page, Swagger or the API. `POST /api/notify` stays open, because Przelewy24 calls it; a notification is checked by its signature.
 
 ## License
 
